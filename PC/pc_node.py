@@ -37,29 +37,23 @@ def main_worker():
     PropoData=propo.getPropoData()
     # 制御計算
     # motorinput=PID.calc_input(PropoData)
-    # # ECUノードへ送信
-    # SendData=pickle.dumps(motorinput)
-    # client.sendto(SendData,(ECU.IP,ECU.PORT))
-    now=time.time()
-    print(now-lasttime)
-    lasttime=now
+    # ECUノードへ送信
+    SendData=pickle.dumps(PropoData)
+    client.sendto(SendData,(ECU.IP,ECU.PORT))
     
 
 # 定周期大麻
-def scheduler(interval, func,wait=True):
+def scheduler(interval, func):
     global propo,PropoData
     base_time = time.time()
     next_time = 0
     while True:
-        # t = threading.Thread(target = func)
-        # t.start()
         func()
-        if wait:
-            next_time = ((base_time - time.time()) % interval) or interval
-            time.sleep(next_time)
+        next_time = ((base_time - time.time()) % interval) or interval
+        time.sleep(next_time)
 
     
-scheduler(1,main_worker,True)
+scheduler(0.01,main_worker)
 
 # while True:
 #     try:
