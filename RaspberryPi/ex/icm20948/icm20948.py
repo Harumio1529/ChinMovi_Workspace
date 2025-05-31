@@ -6,6 +6,7 @@ import pprint
 
 i2c=smbus.SMBus(1)
 sensor_addr=0x68
+mag_addr=0x0C
 
 class icm20948:
     def hello(self):
@@ -15,25 +16,44 @@ class icm20948:
             print("icm20948 connected!!")
         else :
             print("icm20948 No Connected ...")
+    
+    def hello_mag(self):
+        ans=i2c.read_byte_data(mag_addr,0x00)
+        if ans==0x48:
+            print("AK09916 connected!!")
+        else :
+            print("AK09916 No Connected ...")
+
 
     def setup(self):
         # set data container. it's numpy data.
         # it has 3axis data -> x y z 
         self.gy_data_raw=np.empty(3,dtype=np.int16)
         self.ac_data_raw=np.empty(3,dtype=np.int16)
+        self.mag_data_raw=np.empty(3,dtype=np.int16)
         self.gy_data=np.empty(3,dtype=np.float)
         self.ac_data=np.empty(3,dtype=np.float)
+        self.mag_data=np.empty(3,dtype=np.int16)
         # sensor start up
-        i2c.write_byte_data(sensor_addr,0x06,0x02)
+        i2c.write_byte_data(sensor_addr,0x06,0x00)
+        time.sleep(0.01)
         # Acc Sensor start up
         i2c.write_byte_data(sensor_addr,0x0F,0x02)
+        time.sleep(0.01)
         # sensitivity
         self.ac_sf=16384.0
         self.gy_sf=131.0
+        self.mag_sf=0.15
+
+    def set_freq_mag(self):
+        # 100HZ logging
+        i2c.write_byte_data(mag_addr,0x31,0x08)
+        time.sleep(0.01)
     
     def set_scale_gyr(self,scale_num_gyr="250dps"):
         # change user bank
-        i2c.write_byte_data(sensor_addr,0x7F,0x20)
+        i2c.write_byte_data(sensor_addr,0x7F,0x02)
+        time.sleep(0.01)
 
         if scale_num_gyr=="250dps":
             val=0x01
@@ -58,12 +78,15 @@ class icm20948:
 
         # set acc scale
         i2c.write_byte_data(sensor_addr,0x01,val)
+        time.sleep(0.01)
         # change user bank
         i2c.write_byte_data(sensor_addr,0x7F,0x00)
+        time.sleep(0.01)
 
     def set_scale_acc(self,scale_num_acc="2G"):
         # change user bank
         i2c.write_byte_data(sensor_addr,0x7F,0x20)
+        time.sleep(0.01)
 
         if scale_num_acc=="2G":
             val=0x01
@@ -79,8 +102,6 @@ class icm20948:
 
         elif scale_num_acc=="16G":
             val=0x07
-        
-    ax = int(10*data[0])+4
         else :
             val=0x01
             self.ac_sf=16384.0
@@ -88,8 +109,10 @@ class icm20948:
 
         # set acc scale
         i2c.write_byte_data(sensor_addr,0x14,val)
+        time.sleep(0.01)
         # change user bank
         i2c.write_byte_data(sensor_addr,0x7F,0x00)
+        time.sleep(0.01)
 
     def get_gyr(self):
         # read 6byte from 0x33
@@ -115,6 +138,26 @@ class icm20948:
         # print("fin")
         return np.round(self.ac_data,2)
     
+    def get_mag(self):
+        # read 6byte from 0x11
+        # 3axis data is into each 2byte from 0x11
+        ans = i2c.read_i2c_block_data(mag_addr,0x11,8)
+        for i in range(3):
+            self.mag_data_raw[i]=((ans[(2*i)+1] << 8 | ans[2*i]))
+            self.mag_data[i]=self.mag_data_raw[i]*self.mag_sf
+        # print(float(self.ac_data[0])/self.ac_sf)
+        # print(float(self.ac_data[1])/self.ac_sf)
+        # print(float(self.ac_data[2])/self.ac_sf)
+        # print("fin")
+        # print(ans)
+        return np.round(self.mag_data_raw,2)
+    
+    def check_mag_data_ready(self):
+        ans=i2c.read_byte_data(mag_addr,0x10)
+        print(ans)
+
+
+    
 
     
     
@@ -134,6 +177,8 @@ sensor.hello()
 sensor.setup()
 sensor.set_scale_gyr("500dps")
 sensor.set_scale_acc("2G")
+sensor.hello_mag()
+sensor.setup_mag()
 # with open("/home/takuma/Desktop/ChinMovi_Workspace/RaspberryPi/ex/icm20948/log.csv","w") as f: 
 #     writer=csv.writer(f)
 #     while True:
@@ -141,9 +186,15 @@ sensor.set_scale_acc("2G")
 #         writer.writerow([data[0],data[1],data[2]])
 #         print(".")
 
+# while True:
+#     data=sensor.get_acc()
+#     aho = ["-" for i in range(10)]
+#     ax = int(10*data[0])+4
+#     aho[ax] = "!"
+#     print(f"\r{str(aho)}",end="")
+
 while True:
-    data=sensor.get_acc()
-    aho = ["-" for i in range(10)]
-    ax = int(10*data[0])+4
-    aho[ax] = "!"
-    print(f"\r{str(aho)}",end="")
+    data=sensor.get_mag()
+    # sensor.check_mag_data_ready()
+    # time.sleep(0.1)
+    print(data)
