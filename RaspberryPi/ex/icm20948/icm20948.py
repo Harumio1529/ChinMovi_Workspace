@@ -4,21 +4,24 @@ import numpy as np
 import csv
 import pprint
 
-i2c=smbus.SMBus(1)
+
 sensor_addr=0x68
 mag_addr=0x0C
 
 class icm20948:
+    def __init__(self,module):
+        self.i2c=module
+
     def hello(self):
         value = 0x00
-        ans=i2c.read_byte_data(sensor_addr,value)
+        ans=self.i2c.read_byte_data(sensor_addr,value)
         if ans==0xEA:
             print("icm20948 connected!!")
         else :
             print("icm20948 No Connected ...")
     
     def hello_mag(self):
-        ans=i2c.read_byte_data(mag_addr,0x00)
+        ans=self.i2c.read_byte_data(mag_addr,0x00)
         if ans==0x48:
             print("AK09916 connected!!")
         else :
@@ -35,10 +38,10 @@ class icm20948:
         self.ac_data=np.empty(3,dtype=np.float)
         self.mag_data=np.empty(3,dtype=np.int16)
         # sensor start up
-        i2c.write_byte_data(sensor_addr,0x06,0x00)
+        self.i2c.write_byte_data(sensor_addr,0x06,0x00)
         time.sleep(0.01)
         # Acc Sensor start up
-        i2c.write_byte_data(sensor_addr,0x0F,0x02)
+        self.i2c.write_byte_data(sensor_addr,0x0F,0x02)
         time.sleep(0.01)
         # sensitivity
         self.ac_sf=16384.0
@@ -47,12 +50,12 @@ class icm20948:
 
     def set_freq_mag(self):
         # 100HZ logging
-        i2c.write_byte_data(mag_addr,0x31,0x08)
+        self.i2c.write_byte_data(mag_addr,0x31,0x08)
         time.sleep(0.01)
     
     def set_scale_gyr(self,scale_num_gyr="250dps"):
         # change user bank
-        i2c.write_byte_data(sensor_addr,0x7F,0x02)
+        self.i2c.write_byte_data(sensor_addr,0x7F,0x02)
         time.sleep(0.01)
 
         if scale_num_gyr=="250dps":
@@ -77,15 +80,15 @@ class icm20948:
             print("Argument error. set scale 250dps")
 
         # set acc scale
-        i2c.write_byte_data(sensor_addr,0x01,val)
+        self.i2c.write_byte_data(sensor_addr,0x01,val)
         time.sleep(0.01)
         # change user bank
-        i2c.write_byte_data(sensor_addr,0x7F,0x00)
+        self.i2c.write_byte_data(sensor_addr,0x7F,0x00)
         time.sleep(0.01)
 
     def set_scale_acc(self,scale_num_acc="2G"):
         # change user bank
-        i2c.write_byte_data(sensor_addr,0x7F,0x20)
+        self.i2c.write_byte_data(sensor_addr,0x7F,0x20)
         time.sleep(0.01)
 
         if scale_num_acc=="2G":
@@ -108,16 +111,16 @@ class icm20948:
             print("Argument error. set scale 2G")
 
         # set acc scale
-        i2c.write_byte_data(sensor_addr,0x14,val)
+        self.i2c.write_byte_data(sensor_addr,0x14,val)
         time.sleep(0.01)
         # change user bank
-        i2c.write_byte_data(sensor_addr,0x7F,0x00)
+        self.i2c.write_byte_data(sensor_addr,0x7F,0x00)
         time.sleep(0.01)
 
     def get_gyr(self):
         # read 6byte from 0x33
         # 3axis data is into each 2byte from 0x33
-        ans = i2c.read_i2c_block_data(sensor_addr,0x33,6)
+        ans = self.i2c.read_i2c_block_data(sensor_addr,0x33,6)
         for i in range(3):
             self.gy_data[i]=((ans[2*i] << 8 | ans[(2*i)+1]))
         print(float(self.gy_data[0])/self.gy_sf)
@@ -128,7 +131,7 @@ class icm20948:
     def get_acc(self):
         # read 6byte from 0x2D
         # 3axis data is into each 2byte from 0x2D
-        ans = i2c.read_i2c_block_data(sensor_addr,0x2D,6)
+        ans = self.i2c.read_i2c_block_data(sensor_addr,0x2D,6)
         for i in range(3):
             self.ac_data_raw[i]=((ans[2*i] << 8 | ans[(2*i)+1]))
             self.ac_data[i]=self.ac_data_raw[i]/self.ac_sf
@@ -141,7 +144,7 @@ class icm20948:
     def get_mag(self):
         # read 6byte from 0x11
         # 3axis data is into each 2byte from 0x11
-        ans = i2c.read_i2c_block_data(mag_addr,0x11,8)
+        ans = self.i2c.read_i2c_block_data(mag_addr,0x11,8)
         for i in range(3):
             self.mag_data_raw[i]=((ans[(2*i)+1] << 8 | ans[2*i]))
             self.mag_data[i]=self.mag_data_raw[i]*self.mag_sf
@@ -153,7 +156,7 @@ class icm20948:
         return np.round(self.mag_data_raw,2)
     
     def check_mag_data_ready(self):
-        ans=i2c.read_byte_data(mag_addr,0x10)
+        ans=self.i2c.read_byte_data(mag_addr,0x10)
         print(ans)
 
 
@@ -171,14 +174,14 @@ class icm20948:
 
 
 
-
-sensor=icm20948()
+i2c=smbus.SMBus(1)
+sensor=icm20948(i2c)
 sensor.hello()
 sensor.setup()
 sensor.set_scale_gyr("500dps")
 sensor.set_scale_acc("2G")
 sensor.hello_mag()
-sensor.setup_mag()
+sensor.set_freq_mag()
 # with open("/home/takuma/Desktop/ChinMovi_Workspace/RaspberryPi/ex/icm20948/log.csv","w") as f: 
 #     writer=csv.writer(f)
 #     while True:
@@ -196,5 +199,5 @@ sensor.setup_mag()
 while True:
     data=sensor.get_mag()
     # sensor.check_mag_data_ready()
-    # time.sleep(0.1)
+    time.sleep(0.1)
     print(data)
