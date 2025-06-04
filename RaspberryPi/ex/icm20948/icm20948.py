@@ -4,6 +4,7 @@ import numpy as np
 import csv
 import pprint
 
+from lib.madgwick_py import madgwickahrs
 
 imu_addr=0x68
 mag_addr=0x0C
@@ -122,11 +123,10 @@ class icm20948:
         # 3axis data is into each 2byte from 0x33
         ans = self.i2c.read_i2c_block_data(imu_addr,0x33,6)
         for i in range(3):
-            self.gy_data[i]=((ans[2*i] << 8 | ans[(2*i)+1]))
-        print(float(self.gy_data[0])/self.gy_sf)
-        print(float(self.gy_data[1])/self.gy_sf)
-        print(float(self.gy_data[2])/self.gy_sf)
-        print("fin")
+            self.gy_data_raw[i]=((ans[2*i] << 8 | ans[(2*i)+1]))
+            self.gy_data[i]=self.gy_data_raw[i]/self.gy_sf
+        
+        return [self.gy_data[0],self.gy_data[1],self.gy_data[2]]
     
     def get_acc(self):
         # read 6byte from 0x2D
@@ -139,7 +139,7 @@ class icm20948:
         # print(float(self.ac_data[1])/self.ac_sf)
         # print(float(self.ac_data[2])/self.ac_sf)
         # print("fin")
-        return np.round(self.ac_data,2)
+        return [self.ac_data[0],self.ac_data[1],self.ac_data[2]]
     
     def get_mag(self):
         # read 6byte from 0x11
@@ -176,6 +176,7 @@ class icm20948:
 
 i2c=smbus.SMBus(1)
 sensor=icm20948(i2c)
+estimate=madgwickahrs.MadgwickAHRS()
 sensor.hello()
 sensor.setup()
 sensor.set_scale_gyr("500dps")
@@ -195,9 +196,13 @@ sensor.set_freq_mag()
 #     ax = int(10*data[0])+4
 #     aho[ax] = "!"
 #     print(f"\r{str(aho)}",end="")
-
 while True:
-    data=sensor.get_mag()
+    gyr=[0,0,0]
+    acc=[0,0,1]
+    estimate.update_imu(sensor.get_gyr(),sensor.get_acc())
+    # print(sensor.get_gyr())
+    time.sleep(0.01)
     # sensor.check_mag_data_ready()
+    data=estimate.quaternion.to_euler_angles()
     time.sleep(0.1)
     print(data)
