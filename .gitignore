@@ -1,3 +1,5 @@
 RaspberryPi/ex/icm20948/log.csv
 
-*__pycach__
+# Pythonのキャッシュファイルを無視
+__pycache__/
+*.pyc
