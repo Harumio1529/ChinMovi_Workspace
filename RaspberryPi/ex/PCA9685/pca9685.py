@@ -58,18 +58,3 @@ class PCA9685():
         self.i2c.write_byte_data(pwm_addr,ALL_LED_OFF_L,(off & 0xFF))
         self.i2c.write_byte_data(pwm_addr,ALL_LED_OFF_H,(off >> 8))
 
-i2c=smbus.SMBus(1)
-pca9685=PCA9685(i2c)
-
-pca9685.set_pwm_freq(490)
-pca9685.set_pwm(0,0,3000)
-time.sleep(0.1)
-print()
-pca9685.set_pwm(0,0,200)
-time.sleep(0.1)
-
-try :
-    while True:
-        pca9685.set_pwm(0,0,2000)
-except KeyboardInterrupt:
-    pca9685.set_all_pwm(0,0)
