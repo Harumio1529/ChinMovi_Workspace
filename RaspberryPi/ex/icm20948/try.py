@@ -3,7 +3,7 @@ import smbus
 import time
 import csv
 
-from lib.madgwick_py import madgwickahrs
+from lib.mafgwickfilter import madgwickahrs
 
 i2c=smbus.SMBus(1)
 sensor=icm20948(i2c)
