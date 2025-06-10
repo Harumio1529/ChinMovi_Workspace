@@ -1,7 +1,6 @@
 import socket
 import time
 import pickle
-import threading
 
 from lib import Propo as Propo
 from lib import Controler as Controler
@@ -24,6 +23,7 @@ PID=Controler.PID_Controler()
 # UDP通信クライアント設立
 client=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 
+server_addr=("192.168.1.16",49300)
 lasttime=0
 # メイン制御部
 def main_worker():
@@ -39,7 +39,8 @@ def main_worker():
     # motorinput=PID.calc_input(PropoData)
     # ECUノードへ送信
     SendData=pickle.dumps(PropoData)
-    client.sendto(SendData,(ECU.IP,ECU.PORT))
+    client.sendto(SendData,server_addr)
+    print(PropoData)
     
 
 # 定周期大麻
@@ -54,12 +55,3 @@ def scheduler(interval, func):
 
     
 scheduler(0.01,main_worker)
-
-# while True:
-#     try:
-        
-#         # main_worker()
-
-#     except KeyboardInterrupt:
-#         client.close()
-#         break
