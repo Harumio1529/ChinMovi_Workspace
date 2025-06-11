@@ -1,9 +1,9 @@
-from icm20948 import icm20948
+from RaspberryPi.src.lib.icm20948.ICM20948 import icm20948
 import smbus
 import time
 import csv
 
-from lib.mafgwickfilter import madgwickahrs
+from lib.madgwickfilter import madgwickahrs
 
 i2c=smbus.SMBus(1)
 sensor=icm20948(i2c)

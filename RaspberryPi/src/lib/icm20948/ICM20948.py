@@ -3,12 +3,13 @@ import time
 import numpy as np
 
 
+
 imu_addr=0x68
 mag_addr=0x0C
 
 d2r=0.017453292519
 
-class icm20948:
+class ICM20948():
     def __init__(self,module):
         self.i2c=module
 
