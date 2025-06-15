@@ -14,8 +14,8 @@ IMU=ICM20948.ICM20948(i2c)
 estimate=madgwickahrs.MadgwickAHRS(sampleperiod=0.01,beta=1.0)
 
 # UDP通信クライアント設立
-client=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-client.bind(NodeAddres.addres)
+#client=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+#client.bind(NodeAddres.addres)
 
 def main_worker():
     # センサ値取得
@@ -26,8 +26,8 @@ def main_worker():
     data=[gyr[0],gyr[1],gyr[2],acc[0],acc[1],acc[2],euler[0],euler[1],euler[2]]
     # PCへ送信
     Send_Data=pickle.dumps(data)
-    client.sendto(Send_Data,PC.addres)
-    print("Sensor Working!")
+    #client.sendto(Send_Data,PC.addres)
+    print(data)
 
 # 定周期大麻
 def scheduler(interval, func):
