@@ -1,8 +1,10 @@
 import time
 import RPi.GPIO as GPIO
+import keyboard
 
 class TB6612:
-    def __init__(self,i2c,pwm_module,pwm_pin,out1,out2):
+    def __init__(self,i2c,pwm_module,pwm_pin,out1,out2,LimitEnable=False):
+        self.LimitEnable=LimitEnable
         self.pca9685=pwm_module(i2c)
         self.pca9685.set_pwm_freq(250)
         self.pca9685.set_all_pwm(0,0)
@@ -24,24 +26,45 @@ class TB6612:
         print("1")
         time.sleep(1)
         print("start!")
-        try:
-            while True:
-                start=time.time()
-                self.move_oneside(speed)
-                end=time.time()
-                self.MaxTime+=(end-start)
-        except KeyboardInterrupt:
-            print("Calibration Fin!")
-            print(f"Result:{self.MaxTime:.2f}[s]")
+        while True:
+            start=time.time()
+            self.pca9685.set_pwm(self.pwm_pin,0,speed)
+            GPIO.output(self.out1,False)
+            GPIO.output(self.out2,True)
+            end=time.time()
+            self.MaxTime+=(end-start)
+            if(keyboard.is_pressed("space")):
+                break
+        print("Calibration Fin!")
+        print(f"Result:{self.MaxTime:.2f}[s]")
 
                 
-    
+    # Limitがかかった場合はTrue Limit内にいる場合はFalse
     def move_oneside(self,speed):
+        start=time.time()
+        if self.LimitEnable==True and self.MaxTime<=self.LimitTime_oneside:
+            GPIO.output(self.out1,False)
+            GPIO.output(self.out2,False)
+            return True
         self.pca9685.set_pwm(self.pwm_pin,0,speed)
         GPIO.output(self.out1,False)
         GPIO.output(self.out2,True)
-    
+        end=time.time()
+        self.LimitTime_oneside+=(end-start)
+        self.LimitTime_otherside-=(end-start)
+        return False
+            
+    # Limitがかかった場合はTrue Limit内にいる場合はFalse
     def move_otherside(self,speed):
+        start=time.time()
+        if self.LimitEnable==True and self.MaxTime<=self.LimitTime_otherside:
+            GPIO.output(self.out1,False)
+            GPIO.output(self.out2,False)
+            return True
         self.pca9685.set_pwm(self.pwm_pin,0,speed)
         GPIO.output(self.out1,True)
         GPIO.output(self.out2,False)
+        end=time.time()
+        self.LimitTime_otherside+=(end-start)
+        self.LimitTime_oneside-=(end-start)
+        return False
