@@ -1,3 +1,6 @@
+import sys
+import os
+
 import socket
 import time
 import pickle
@@ -6,6 +9,8 @@ from PyQt6.QtWidgets import QApplication
 
 from lib import Propo as Propo
 from lib.gui import plot
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),"..")))
 from ADDRES import Sensor_node,Camera_node,Controler_node,PC_node
 
 import pyqtgraph as pg
@@ -24,12 +29,12 @@ ECU=Controler_node()
 PC=PC_node()
 
 #コントローラー初期化
-propo=Propo.ps4()
-PropoData=[0]*4
+# propo=Propo.ps4()
+# PropoData=[0]*4
 
 # UDP通信クライアント設立
-client=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-client.bind(PC.addres)
+# client=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+# client.bind(PC.addres)
 
 lasttime=0
 # メイン制御部
