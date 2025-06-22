@@ -1,4 +1,4 @@
-from RaspberryPi.src.lib.icm20948.ICM20948 import icm20948
+from ICM20948 import icm20948
 import smbus
 import time
 import csv
@@ -31,14 +31,14 @@ with open("/home/takuma/Desktop/ChinMovi_Workspace/RaspberryPi/ex/icm20948/log.c
         # acc=[0,0,1]
         gyr=sensor.get_gyr()
         acc=sensor.get_acc()
-        estimate.update_imu(gyr,acc)
+        #estimate.update_imu(gyr,acc)
         # print(sensor.get_gyr())
         # print(sensor.get_acc())
         # sensor.get_gyr()
         time.sleep(0.01)
         # sensor.check_mag_data_ready()
-        data=estimate.quaternion.to_euler_angles_ZYX()
+        #data=estimate.quaternion.to_euler_angles_ZYX()
         writer.writerow([data[0],data[1],data[2],gyr[0],gyr[1],gyr[2],acc[0],acc[1],acc[2]])
-        print(data)
+        print(gyr)
     
     
