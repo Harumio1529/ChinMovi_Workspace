@@ -13,6 +13,8 @@ ALL_LED_ON_H       = 0xFB
 ALL_LED_OFF_L      = 0xFC
 ALL_LED_OFF_H      = 0xFD
 
+Fs=250
+
 class PCA9685():
     def __init__(self,module):
         # define i2c module
@@ -56,4 +58,48 @@ class PCA9685():
         self.i2c.write_byte_data(pwm_addr,ALL_LED_ON_H,(on >> 8))
         self.i2c.write_byte_data(pwm_addr,ALL_LED_OFF_L,(off & 0xFF))
         self.i2c.write_byte_data(pwm_addr,ALL_LED_OFF_H,(off >> 8))
+
+class THRUSTER(PCA9685):
+    # コンストラクタの引数には各スラスタを挿したピンの番号を記入        
+    def __init__(self,module,PinNum_Th1,PinNum_Th2,PinNum_Th3,PinNum_Th4):
+        super().__init__(module)
+        # pwm周波数を定義
+        self.set_pwm_freq(250)
+        self.PinTh1=PinNum_Th1
+        self.PinTh2=PinNum_Th2
+        self.PinTh3=PinNum_Th3
+        self.PinTh4=PinNum_Th4
+        self.Limitter_MAX=10000
+        self.Limitter_MIN=-10000
+    
+    def Calibration(self):
+        self.set_pwm(self.PinTh1,0,1000)
+        self.set_pwm(self.PinTh2,0,1000)
+        self.set_pwm(self.PinTh3,0,1000)
+        self.set_pwm(self.PinTh4,0,1000)
+        print("Hi Level")
+        time.sleep(1)
+        self.set_pwm(self.PinTh1,0,100)
+        self.set_pwm(self.PinTh2,0,100)
+        self.set_pwm(self.PinTh3,0,100)
+        self.set_pwm(self.PinTh4,0,100)
+        print("Lo Level")
+        time.sleep(1)
+        return "CALIBRATION"
+
+
+    def Limitter(self,val):
+        return max(min(val,self.Limitter_MAX),self.Limitter_MIN)
+    
+    def set_thrust(self,Th1,Th2,Th3,Th4):
+        self.set_pwm(self.PinTh1,0,self.Limitter(Th1))
+        self.set_pwm(self.PinTh2,0,self.Limitter(Th2))
+        self.set_pwm(self.PinTh3,0,self.Limitter(Th3))
+        self.set_pwm(self.PinTh4,0,self.Limitter(Th4))
+
+class SERVO(PCA9685):
+    
+        
+
+        
 
