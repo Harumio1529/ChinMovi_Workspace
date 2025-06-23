@@ -54,27 +54,38 @@ def CheckIPAddress(module):
         print("The augument is invalid. Set PC or RaspberryPi")
 
 
-class Sensor_node:
-    def __init__(self):
-        self.IP="169.254.143.180"
-        self.PORT=5001
-        self.addres=(self.IP,self.PORT)
+class RasPi:
+    def __init__(self,IP):
+        self.IP=IP
+        self.Sensor_Port=5001
 
-class PC_node:
-    def __init__(self):
-        self.IP="169.254.105.97"
-        self.PORT=5002
-        self.addres=(self.IP,self.PORT)
+class PC:
+    def __init__(self,IP):
+        self.IP=IP
+        self.PC_Port=5002
+        
 
-class Camera_node:
-    def __init__(self):
-        self.IP="169.254.143.180"
-        self.PORT=5003
-        self.addres=(self.IP,self.PORT)
+# class Sensor_node:
+#     def __init__(self):
+#         self.IP="169.254.143.180"
+#         self.PORT=5001
+#         self.addres=(self.IP,self.PORT)
 
-class Controler_node:
-    def __init__(self):
-        self.IP="169.254.143.180"
-        self.PORT=5004
-        self.addres=(self.IP,self.PORT)
+# class PC_node:
+#     def __init__(self):
+#         self.IP="169.254.105.97"
+#         self.PORT=5002
+#         self.addres=(self.IP,self.PORT)
+
+# class Camera_node:
+#     def __init__(self):
+#         self.IP="169.254.143.180"
+#         self.PORT=5003
+#         self.addres=(self.IP,self.PORT)
+
+# class Controler_node:
+#     def __init__(self):
+#         self.IP="169.254.143.180"
+#         self.PORT=5004
+#         self.addres=(self.IP,self.PORT)
 

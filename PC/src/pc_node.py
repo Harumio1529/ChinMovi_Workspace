@@ -23,17 +23,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),"../.."))
 from ADDRES import Sensor_node,Camera_node,Controler_node,PC_node
 
 
-
-
-
-
-
-#登場するノードを定義
-Sensor=Sensor_node()
-Camera=Camera_node()
-ECU=Controler_node()
-PC=PC_node()
-
 #コントローラー初期化
 # propo=Propo.ps4()
 # PropoData=[0]*4
