@@ -37,8 +37,9 @@ def CheckIPAddress(module):
         client.bind(("",5000))
         data=""
         while True:
-            data,addr=client.recvfrom(1024)
             print("Check Connect...")
+            data,addr=client.recvfrom(1024)
+            
             if data.decode("utf-8")=="HelloRaspberryPi!!":
                 # 返送用メッセージ送信
                 msg="HelloPC!!"
