@@ -2,7 +2,7 @@ import socket
 import time
 import pickle
 import smbus
-from ADDRES import Sensor_node,PC_node
+from COMMON import Sensor_node,PC_node
 
 from lib.icm20948 import ICM20948
 from lib.madgwickfilter import madgwickahrs

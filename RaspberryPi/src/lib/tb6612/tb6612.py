@@ -14,6 +14,8 @@ class TB6612:
         self.pwm_pin=pwm_pin
         GPIO.setup(self.out1,GPIO.OUT)
         GPIO.setup(self.out2,GPIO.OUT)
+        self.LimitTime_oneside=0
+        self.LimitTime_otherside=0
     
     def time_calibration(self,speed):
         self.MaxTime=0
@@ -37,6 +39,17 @@ class TB6612:
                 break
         print("Calibration Fin!")
         print(f"Result:{self.MaxTime:.2f}[s]")
+    
+    def caribration(self):
+        self.move_oneside(3000)
+        time.sleep(2)
+        self.stop()
+        time.sleep(0.5)
+        self.move_otherside(3000)
+        time.sleep(2)
+        self.stop()
+
+        return "CARIBRATION_OK"
 
                 
     # Limitがかかった場合はTrue Limit内にいる場合はFalse
@@ -68,3 +81,9 @@ class TB6612:
         self.LimitTime_otherside+=(end-start)
         self.LimitTime_oneside-=(end-start)
         return False
+    
+    def stop(self):
+        self.pca9685.set_pwm(self.pwm_pin,0,0)
+        GPIO.output(self.out1,False)
+        GPIO.output(self.out2,False)
+

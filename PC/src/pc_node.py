@@ -20,7 +20,7 @@ from lib.gui.plot import mainwindow
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),"../..")))
-from ADDRES import Sensor_node,Camera_node,Controler_node,PC_node
+from COMMON import Sensor_node,Camera_node,Controler_node,PC_node
 
 
 #コントローラー初期化

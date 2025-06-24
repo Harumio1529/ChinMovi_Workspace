@@ -183,6 +183,8 @@ class ICM20948():
         for k in range(3):
             self.gyr_offset[k]=gyr_integ[k]/iter
             self.acc_offset[k]=acc_integ[k]/iter
+        
+        return "CALIBRATION_OK"
 
 
     

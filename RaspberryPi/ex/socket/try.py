@@ -2,7 +2,7 @@ import socket
 import time
 import pickle
 
-from ADDRES import Sensor_node,Camera_node,Controler_node,PC_node
+from COMMON import Sensor_node,Camera_node,Controler_node,PC_node
 
 #登場するノードを定義
 ECU=Controler_node()
