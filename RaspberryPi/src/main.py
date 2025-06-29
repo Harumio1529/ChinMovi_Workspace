@@ -41,10 +41,6 @@ def Com_Thred_main(ComAgent: socket.socket):
     # データのバイナリ化
     SendDataBin=pickle.dumps(SendData)
     # データの送信
-    print(type(SendDataBin))
-    print(type((PC_IP,COMMON.PCPort)))
-    print(PC_IP)
-    print(COMMON.PCPort)
     ComAgent.sendto(SendDataBin,(PC_IP,COMMON.PCPort))
 
     
@@ -53,11 +49,21 @@ def Com_Thred_main(ComAgent: socket.socket):
     try:
         RecvData,Fromaddr=ComAgent.recvfrom(1024)
         PropoData.put(pickle.loads(RecvData))
-        print("debug")
 
     except socket.timeout:
         STSOCKET="TIMEOUT"
         print("timeout")
+
+def Module_Thred():
+    COMMON.scheduler(0.01,Module_Thred_main)
+
+def Module_Thred_main():
+    data=PropoData.get()[0]
+    input=int(2048+(data*2047))
+    input_th=int(1600+(data*600))
+    print(input)
+    SRV.set_servo(input,input)
+    TH.set_thrust(input_th,input_th,input_th,input_th)
 
 
 
@@ -112,7 +118,7 @@ IMU.set_scale_acc("2G")
 STIMU="SETUP"
 # キャリブレーション
 STIMU="CALIBRATION"
-STIMU=IMU.calibration(1000)
+STIMU=IMU.calibration(1)
 # 姿勢角推定
 EST=MadgwickAHRS(sampleperiod=0.01,beta=1.0)
 STIMU="READY"
@@ -123,6 +129,7 @@ TH=THRUSTER(i2c,0,1,2,3)
 # キャリブレーション
 STTHRUST="CALIBRATION"
 STTHRUST=TH.Calibration()
+TH.set_thrust(1600,1600,1600,1600)
 time.sleep(1)
 STTHRUST="READY"
 print("THRUSTER is READY !")
@@ -146,7 +153,14 @@ STCHU="READY"
 print("CHUSYAKI is READY !")
 
 
-threading.Thread(target=Com_Thred,args=(ComAgent,)).start()
+threading.Thread(target=Com_Thred,args=(ComAgent,),daemon=True).start()
+threading.Thread(target=Module_Thred,daemon=True).start()
 
-
+try:
+    while True:
+        pass
+except KeyboardInterrupt:
+    TH.close()
+    SRV.close()
+    CHU.close()
 

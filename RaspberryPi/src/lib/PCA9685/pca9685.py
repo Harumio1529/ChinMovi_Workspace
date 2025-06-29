@@ -69,8 +69,8 @@ class THRUSTER(PCA9685):
         self.PinTh2=PinNum_Th2
         self.PinTh3=PinNum_Th3
         self.PinTh4=PinNum_Th4
-        self.Limitter_MAX=10000
-        self.Limitter_MIN=-10000
+        self.Limitter_MAX=2200
+        self.Limitter_MIN=1000
     
     def Calibration(self):
         self.set_pwm(self.PinTh1,0,1000)
@@ -96,6 +96,12 @@ class THRUSTER(PCA9685):
         self.set_pwm(self.PinTh2,0,self.Limitter(Th2))
         self.set_pwm(self.PinTh3,0,self.Limitter(Th3))
         self.set_pwm(self.PinTh4,0,self.Limitter(Th4))
+    
+    def close(self):
+        self.set_pwm(self.PinTh1,0,0)
+        self.set_pwm(self.PinTh2,0,0)
+        self.set_pwm(self.PinTh3,0,0)
+        self.set_pwm(self.PinTh4,0,0)
 
 class SERVO(PCA9685):
     # コンストラクタにはサーボを挿したピンの番号を記入
@@ -115,11 +121,17 @@ class SERVO(PCA9685):
         self.set_pwm(self.PinSrv2,0,self.Limitter(Srv2))
     
     def Caribration(self):
-        self.set_servo(1000,1000)
+        self.set_servo(2048,2048)
         time.sleep(2)
-        self.set_servo(3000,3000)
+        self.set_servo(1,1)
+        time.sleep(2)
+        self.set_servo(4095,4095)
         time.sleep(2)
         return "CARIBRATION_OK"
+    
+    def close(self):
+        self.set_pwm(self.PinSrv1,0,0)
+        self.set_pwm(self.PinSrv2,0,0)
 
         
 

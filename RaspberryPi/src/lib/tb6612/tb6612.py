@@ -86,4 +86,8 @@ class TB6612:
         self.pca9685.set_pwm(self.pwm_pin,0,0)
         GPIO.output(self.out1,False)
         GPIO.output(self.out2,False)
+    
+    def close(self):
+        GPIO.cleanup()
+        self.pca9685.set_pwm(self.pwm_pin,0,0)
 
