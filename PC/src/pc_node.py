@@ -20,8 +20,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),"../.."))
 import COMMON
 # 通信チェック
 RasPi_IP,PC_IP=COMMON.CheckIPAddress("PC")
-RasPi=COMMON.RasPi(RasPi_IP)
-
 
 #コントローラー初期化
 propo=ps4()
@@ -34,15 +32,14 @@ ComAgent.bind((PC_IP,COMMON.PCPort))
 
 def Com_main():
     global PropoData
-    while True:
-        try:
-            data,addr=ComAgent.recvfrom(1024)
-            PropoData=propo.getPropoData()
-            ComAgent.sendto(pickle.dumps(PropoData),(RasPi_IP,COMMON.RasPiPort))
-        
-        except socket.timeout:
-            pass
-        print(data)
+    try:
+        data,addr=ComAgent.recvfrom(1024)
+        PropoData=propo.getPropoData()
+        ComAgent.sendto(pickle.dumps(PropoData),(RasPi_IP,COMMON.RasPiPort))
+    
+    except socket.timeout:
+        pass
+    print(data)
 
 
 
