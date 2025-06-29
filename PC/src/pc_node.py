@@ -21,6 +21,11 @@ import COMMON
 # 通信チェック
 RasPi_IP,PC_IP=COMMON.CheckIPAddress("PC")
 
+# デバッグ用ダミーIPアドレス
+# RasPi_IP="0.0.0.0"
+# PC_IP="0.0.0.0"
+
+
 #コントローラー初期化
 propo=ps4()
 PropoData=[0]*4
@@ -28,6 +33,7 @@ PropoData=[0]*4
 # UDP通信クライアント設立
 ComAgent=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 ComAgent.bind((PC_IP,COMMON.PCPort))
+ComAgent.settimeout(0.0001)
 
 
 def Com_main():
@@ -36,14 +42,15 @@ def Com_main():
         data,addr=ComAgent.recvfrom(1024)
         PropoData=propo.getPropoData()
         ComAgent.sendto(pickle.dumps(PropoData),(RasPi_IP,COMMON.RasPiPort))
+        print(pickle.loads(data))
     
     except socket.timeout:
+        print("timeout")
         pass
-    print(data)
 
 
 
-COMMON.scheduler(0.001,Com_main)
+COMMON.scheduler(0.01,Com_main)
 
 
 
