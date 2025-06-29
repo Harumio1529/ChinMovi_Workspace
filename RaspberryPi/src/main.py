@@ -14,28 +14,21 @@ PropoData=queue.Queue()
 
 
 
-#### 定周期大麻 ####
-# interval -> 実行周期[s]
-# func -> 実行関数
-def scheduler(interval, func):
-    base_time = time.time()
-    next_time = 0
-    while True:
-        func()
-        next_time = ((base_time - time.time()) % interval) or interval
-        time.sleep(next_time)
+
+
 
 #### 通信スレッド用関数 ####
 def Com_Thred(ComAgent: socket.socket):
-    scheduler(0.01,lambda: Com_Thred_main(ComAgent))
+    COMMON.scheduler(0.01,lambda: Com_Thred_main(ComAgent))
 
 # 通信スレッド用main関数
 def Com_Thred_main(ComAgent: socket.socket):
+    global STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,SA
     # 送信用データまとめ
     # 送信用データの中身([byte])
     # [ACC_X(4),ACC_Y(4),ACC_Z(4),GYR_X(4),GYR_Y(4),GYR_Z(4),PITCH(4),ROLL(4),YAW(4),STSOCKET(1),STIMU(1),STTHRUST(1),STSERVO(1),STCHU(1)]
     # ステータス信号のエンコード
-    EncodeStatus=COMMON.StatusAnalyzer.Encoder([STSOCKET,STIMU,STTHRUST,STSERVO,STCHU])
+    EncodeStatus=SA.Encoder([STSOCKET,STIMU,STTHRUST,STSERVO,STCHU])
     # センサデータをぶち込む
     if STIMU!="WORKING":
         SendData=[0.0,0.0,0.0,
@@ -48,12 +41,19 @@ def Com_Thred_main(ComAgent: socket.socket):
     # データのバイナリ化
     SendDataBin=pickle.dumps(SendData)
     # データの送信
-    ComAgent.sendto(SendDataBin,PC.address)
+    ComAgent.sendto(SendDataBin,((PC_IP,COMMON.PCPort)))
 
-    # データ受信
-    RecvData,Fromaddr=ComAgent.recvfrom(1024)
-    PropoData.put(pickle.loads(RecvData))
+    
 
+    # # データ受信
+    try:
+        RecvData,Fromaddr=ComAgent.recvfrom(1024)
+        PropoData.put(pickle.loads(RecvData))
+        print("debug")
+
+    except socket.timeout:
+        STSOCKET="TIMEOUT"
+        print("timeout")
 
 
 
@@ -73,21 +73,28 @@ STCHU="PREPARING"
 # socket用アドレスファイルをimport
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),"../..")))
 import COMMON
+# ステータスのデコーダを準備する。
+SA=COMMON.StatusAnalyzer()
 
 # i2cモジュール立ち上げ
 i2c=smbus.SMBus(1)
 
 # 通信チェック
-# PC_IP=COMMON.CheckIPAddress("RaspberryPi")
-# デバッグ用ダミーIPアドレス
+# ↓デバッグ用にコメントアウト↓
+# PC_IP,RasPI_IP=COMMON.CheckIPAddress("RaspberryPi")
+
+# ↓デバッグ用ダミーIPアドレス
+##################
+RasPI_IP="0.0.0."
 PC_IP="0.0.0.0"
+#################
 STSOCKET="COM_OK"
-# 通信用アドレスファイルをロード
-PC=COMMON.PC(PC_IP)
+
 # COMエージェント立ち上げ
 STSOCKET="STANDUP_COMAGENT"
 ComAgent=socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-ComAgent.bind(('0.0.0.0', COMMON.RasPiPort))
+ComAgent.settimeout(0.005)
+ComAgent.bind((RasPI_IP, COMMON.RasPiPort))
 STSOCKET="READY"
 print("socket com is READY!")
 
@@ -135,7 +142,7 @@ STCHU="READY"
 print("CHUSYAKI is READY !")
 
 
-
+threading.Thread(target=Com_Thred,args=(ComAgent,)).start()
 
 
 
