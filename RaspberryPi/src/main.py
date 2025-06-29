@@ -41,7 +41,11 @@ def Com_Thred_main(ComAgent: socket.socket):
     # データのバイナリ化
     SendDataBin=pickle.dumps(SendData)
     # データの送信
-    ComAgent.sendto(SendDataBin,((PC_IP,COMMON.PCPort)))
+    print(type(SendDataBin))
+    print(type((PC_IP,COMMON.PCPort)))
+    print(PC_IP)
+    print(COMMON.PCPort)
+    ComAgent.sendto(SendDataBin,(PC_IP,COMMON.PCPort))
 
     
 
@@ -81,12 +85,12 @@ i2c=smbus.SMBus(1)
 
 # 通信チェック
 # ↓デバッグ用にコメントアウト↓
-# PC_IP,RasPI_IP=COMMON.CheckIPAddress("RaspberryPi")
+PC_IP,RasPI_IP=COMMON.CheckIPAddress("RaspberryPi")
 
 # ↓デバッグ用ダミーIPアドレス
 ##################
-RasPI_IP="0.0.0."
-PC_IP="0.0.0.0"
+# RasPI_IP="0.0.0.0"
+# PC_IP="0.0.0.0"
 #################
 STSOCKET="COM_OK"
 

@@ -34,7 +34,7 @@ def CheckIPAddress(module):
                 break
         print("socket com is OK.")
         print(f"RaspberryPi's IP is {addr}")
-        return addr,thisIP
+        return addr[0],thisIP
     
     elif module=="RaspberryPi":
         client=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
@@ -54,7 +54,7 @@ def CheckIPAddress(module):
         client.close()
         print("socket com is OK.")
         print(f"PC's IP is {addr}")
-        return addr,thisIP
+        return addr[0],thisIP
     
     else:
         print("The augument is invalid. Set PC or RaspberryPi")
