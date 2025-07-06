@@ -20,24 +20,25 @@ def Clahe(img):
 
     bin_img1 = cv2.inRange(hsv, LOW_COLOR1, HIGH_COLOR1) # マスクを作成
     bin_img2 = cv2.inRange(hsv, LOW_COLOR2, HIGH_COLOR2)
-    mask = bin_img1 + bin_img2 # 必要ならマスクを足し合わせる
-    masked_img = cv2.bitwise_and(img, img, mask= mask) # 元画像から特定の色を抽出
+    mask = bin_img1 + bin_img2 # マスクの足し合わせ。赤は色相でいうと0-360にかかるので領域を分けている。
+    masked_img = cv2.bitwise_and(img, img, mask= mask) # 元画像にマスクをかぶせる
 
-    num_labels,label_img,status,centroids=cv2.connectedComponentsWithStats(mask)
+    num_labels,label_img,status,centroids=cv2.connectedComponentsWithStats(mask) #マスクの情報を取得
 
     num_labels = num_labels - 1
     status = np.delete(status, 0, 0)
     centroids = np.delete(centroids, 0, 0)
 
     for index in range(num_labels):
-        x=status[index][0]
-        y=status[index][1]
-        w=status[index][2]
-        h=status[index][3]
-        s=status[index][4]
-        mx=int(centroids[index][0])
-        my=int(centroids[index][1])
+        x=status[index][0] # x:バウンディングボックスの左上X座標
+        y=status[index][1] # y:バウンディングボックスの左上Y座標
+        w=status[index][2] # w:バウンディングボックスの幅
+        h=status[index][3] # h:バウンディングボックスの高さ
+        s=status[index][4] # s:バウンディングボックスの面積
+        mx=int(centroids[index][0]) # mx:バウンディングボックスの重心の座標
+        my=int(centroids[index][1]) # my:バウンディングボックスの重心の座標
 
+        # 面積が一定以上の赤をバウンディングボックスで囲む
         if s>300 :
             # cv2.rectangle(masked_img,(x,y),(x+w,y+h),(255,0,255))
             # cv2.circle(masked_img,(mx,my),5,(255,255,0))
