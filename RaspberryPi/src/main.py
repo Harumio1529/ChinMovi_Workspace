@@ -8,12 +8,13 @@ from lib.madgwickfilter.madgwickahrs import MadgwickAHRS
 from lib.PCA9685.pca9685 import PCA9685,THRUSTER,SERVO
 from lib.tb6612.tb6612 import TB6612
 
+
+#デバッグモード
+DEBUG_MODE=False 
+
 # Queueデータの箱を準備する
 SensorData=queue.Queue()
 PropoData=queue.Queue()
-
-
-
 
 
 
@@ -89,15 +90,14 @@ SA=COMMON.StatusAnalyzer()
 # i2cモジュール立ち上げ
 i2c=smbus.SMBus(1)
 
-# 通信チェック
-# ↓デバッグ用にコメントアウト↓
-PC_IP,RasPI_IP=COMMON.CheckIPAddress("RaspberryPi")
+# デバッグモードの時はダミーIPアドレスを使う
+if DEBUG_MODE:
+    RasPI_IP="0.0.0.0"
+    PC_IP="0.0.0.0"
 
-# ↓デバッグ用ダミーIPアドレス
-##################
-# RasPI_IP="0.0.0.0"
-# PC_IP="0.0.0.0"
-#################
+else:
+    PC_IP,RasPI_IP=COMMON.CheckIPAddress("RaspberryPi")
+
 STSOCKET="COM_OK"
 
 # COMエージェント立ち上げ
@@ -144,13 +144,17 @@ STSERVO="READY"
 print("SERVO is READY !")
 
 # チュウシャキモジュール起動
-CHU=TB6612(i2c,PCA9685,11,20,21,LimitEnable=False)
+CHU1=TB6612(i2c,PCA9685,7,20,21,LimitEnable=False)
+CHU2=TB6612(i2c,PCA9685,6,12,16,LimitEnable=False)
 # キャリブレーション(と言ってるが動かしてるだけ)
 STCHU="CARIBRATION"
-STCHU=CHU.caribration()
-time.sleep(1)
+STCHU=CHU1.caribration()
+if CHU1.caribration()=="CARIBRATION_OK" and CHU1.caribration()=="CARIBRATION_OK":
+    STCHU="CARIBRATION_OK"
+
 STCHU="READY"
 print("CHUSYAKI is READY !")
+time.sleep(2)
 
 
 threading.Thread(target=Com_Thred,args=(ComAgent,),daemon=True).start()
