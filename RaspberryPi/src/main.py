@@ -7,51 +7,87 @@ from lib.icm20948.ICM20948 import ICM20948
 from lib.madgwickfilter.madgwickahrs import MadgwickAHRS
 from lib.PCA9685.pca9685 import PCA9685,THRUSTER,SERVO
 from lib.tb6612.tb6612 import TB6612
+from lib.CustomQueue.customqueue import CustomQueue
 
 
 #デバッグモード
 DEBUG_MODE=False
+DEBUG_PRINT=False
+
+#デバッグ用コンソール出力
+def debugprint(data):
+    if DEBUG_PRINT:
+        print(data)
 
 # Queueデータの箱を準備する
 SensorData=queue.Queue()
 PropoData=queue.Queue()
-
+STSOCKET=CustomQueue(init_item="PREPARING",maxsize=10)
+STIMU=CustomQueue(init_item="PREPARING",maxsize=10)
+STTHRUST=CustomQueue(init_item="PREPARING",maxsize=10)
+STSERVO=CustomQueue(init_item="PREPARING",maxsize=10)
+STCHU=CustomQueue(init_item="PREPARING",maxsize=10)
+# 各種ステータス
+# STSOCKET.put("PREPARING")
+# STIMU.put("PREPARING")
+# STTHRUST.put("PREPARING")
+# STSERVO.put("PREPARING")
+# STCHU.put("PREPARING")
 
 
 #### 通信スレッド用関数 ####
 def Com_Thred(ComAgent: socket.socket):
     COMMON.scheduler(0.01,lambda: Com_Thred_main(ComAgent))
 
+def data_separater(data):
+    StatusData=SA.Decoder(data[len(data)-5:])
+    if StatusData[0]=="WORKING":
+        STSOCKET.put(StatusData[0])
+    if StatusData[1]=="WORKING":
+        STIMU.put(StatusData[1])
+    if StatusData[2]=="WORKING":
+        STTHRUST.put(StatusData[2])
+    if StatusData[3]=="WORKING":
+        STSERVO.put(StatusData[3])
+    if StatusData[4]=="WORKING":
+        STCHU.put(StatusData[4])
+    print([STSOCKET.peek(),STIMU.peek(),STTHRUST.peek(),STSERVO.peek(),STCHU.peek()])
+
+    
+
 # 通信スレッド用main関数
 def Com_Thred_main(ComAgent: socket.socket):
-    global STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,SA
     # 送信用データまとめ
     # 送信用データの中身([byte])
     # [ACC_X(4),ACC_Y(4),ACC_Z(4),GYR_X(4),GYR_Y(4),GYR_Z(4),PITCH(4),ROLL(4),YAW(4),STSOCKET(1),STIMU(1),STTHRUST(1),STSERVO(1),STCHU(1)]
     # ステータス信号のエンコード
-    EncodeStatus=SA.Encoder([STSOCKET,STIMU,STTHRUST,STSERVO,STCHU])
+    EncodeStatus=SA.Encoder([STSOCKET.get_emptychck(),STIMU.get_emptychck(),STTHRUST.get_emptychck(),STSERVO.get_emptychck(),STCHU.get_emptychck()])
+    # print(EncodeStatus)
     # センサデータをぶち込む
-    if STIMU!="WORKING":
+    if STIMU.get_emptychck()!="WORKING":
         SendData=[0.0,0.0,0.0,
                         0.0,0.0,0.0,
                         0.0,0.0,0.0,
                         *EncodeStatus]
     else :
         SendData=[*SensorData.get(),*EncodeStatus]
+        
     
     # データのバイナリ化
     SendDataBin=pickle.dumps(SendData)
     # データの送信
     ComAgent.sendto(SendDataBin,(PC_IP,COMMON.PCPort))
+    
 
-    # # データ受信
+    # # # データ受信
     try:
         RecvData,Fromaddr=ComAgent.recvfrom(1024)
-        PropoData.put(pickle.loads(RecvData))
-        STSOCKET="WORKING"
+        data_separater(pickle.loads(RecvData))
+        # print(pickle.loads(RecvData))
+        STSOCKET.put("WORKING")
 
     except socket.timeout:
-        STSOCKET="TIMEOUT"
+        STSOCKET.put("TIMEOUT")
         print("timeout")
 
 
@@ -68,6 +104,17 @@ def Module_Thred_main():
     SRV.set_servo(input,input)
     TH.set_thrust(input_th,input_th,input_th,input_th)
 
+### センサーデータ取得用スレッド ###
+def Sensor_Thred():
+    COMMON.scheduler(0.01,Sensor_Thred_main)
+
+# センサデータ取得用スレッドmaih関数 #
+def Sensor_Thred_main():
+    gyr=IMU.get_gyr()
+    acc=IMU.get_acc()
+    EST.update_imu(gyr,acc)
+    eul=EST.quaternion.to_euler_angles_ZYX()
+    SensorData.put([*gyr,*acc,*eul])
 
 
 
@@ -76,12 +123,9 @@ def Module_Thred_main():
 
 
 
-# 各種ステータス
-STSOCKET="PREPARING"
-STIMU="PREPARING"
-STTHRUST="PREPARING"
-STSERVO="PREPARING"
-STCHU="PREPARING"
+
+
+
 
 # socket用アドレスファイルをimport
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),"../..")))
@@ -99,16 +143,18 @@ if DEBUG_MODE:
 
 else:
     PC_IP,RasPI_IP=COMMON.CheckIPAddress("RaspberryPi")
-
-STSOCKET="COM_OK"
+debugprint("aho")
+debugprint(STSOCKET.empty())
+STSOCKET.put("COM_OK")
+debugprint("baka")
 
 # COMエージェント立ち上げ
-STSOCKET="STANDUP_COMAGENT"
+STSOCKET.put("STANDUP_COMAGENT")
 ComAgent=socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-ComAgent.settimeout(1)
+ComAgent.settimeout(0.05)
 ComAgent.bind((RasPI_IP, COMMON.RasPiPort))
-STSOCKET="READY"
-print("socket com is READY!")
+STSOCKET.put("READY")
+debugprint("socket com is READY!")
 
 threading.Thread(target=Com_Thred,args=(ComAgent,),daemon=True).start()
 
@@ -119,49 +165,51 @@ IMU.setup()
 # センサ設定
 IMU.set_scale_gyr("500dps")
 IMU.set_scale_acc("2G")
-STIMU="SETUP"
+STIMU.put("SETUP")
 # キャリブレーション
-STIMU="CALIBRATION"
-STIMU=IMU.calibration(1)
+STIMU.put("CALIBRATION")
+STIMU.put(IMU.calibration(1))
 # 姿勢角推定
 EST=MadgwickAHRS(sampleperiod=0.01,beta=1.0)
-STIMU="READY"
-print("IMU and Estimation is READY !")
+STIMU.put("READY")
+debugprint("IMU and Estimation is READY !")
 
 # スラスタモジュール起動
 TH=THRUSTER(i2c,0,1,2,3)
 # キャリブレーション
-STTHRUST="CALIBRATION"
-STTHRUST=TH.Calibration()
+STTHRUST.put("CALIBRATION")
+STTHRUST.put(TH.Calibration())
 TH.set_thrust(1600,1600,1600,1600)
 time.sleep(1)
-STTHRUST="READY"
-print("THRUSTER is READY !")
+STTHRUST.put("READY")
+debugprint("THRUSTER is READY !")
 
 # サーボモジュール起動
 SRV=SERVO(i2c,8,9)
 # キャリブレーション（と言ってるが動かしてるだけ）
-STSERVO="CARIBRATION"
-STSERVO=SRV.Caribration()
-time.sleep(1)
-STSERVO="READY"
-print("SERVO is READY !")
+STSERVO.put("CARIBRATION")
+time.sleep(0.1)
+STSERVO.put(SRV.Caribration())
+STSERVO.put("READY")
+time.sleep(0.1)
+debugprint("SERVO is READY !")
 
 # チュウシャキモジュール起動
 CHU1=TB6612(i2c,PCA9685,7,20,21,LimitEnable=False)
 CHU2=TB6612(i2c,PCA9685,6,12,16,LimitEnable=False)
 # キャリブレーション(と言ってるが動かしてるだけ)
-STCHU="CARIBRATION"
+STCHU.put("CARIBRATION")
 if CHU1.caribration()=="CARIBRATION_OK" and CHU2.caribration()=="CARIBRATION_OK":
-    STCHU="CARIBRATION_OK"
+    STCHU.put("CARIBRATION_OK")
 
-STCHU="READY"
-print("CHUSYAKI is READY !")
+STCHU.put("READY")
+debugprint("CHUSYAKI is READY !")
 time.sleep(2)
 
 
 
-threading.Thread(target=Module_Thred,daemon=True).start()
+# threading.Thread(target=Module_Thred,daemon=True).start()
+threading.Thread(target=Sensor_Thred,daemon=True).start()
 
 try:
     while True:
