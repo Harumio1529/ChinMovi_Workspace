@@ -43,8 +43,10 @@ STSERVO=""
 STCHU=""
 
 #コントローラー初期化
-propo=ps4()
-PropoData=[0]*4
+stknum=6
+btnnum=16
+propo=ps4(stknum,btnnum)
+PropoData=[0]*(stknum+btnnum)
 
 # UDP通信クライアント設立
 ComAgent=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
@@ -83,6 +85,7 @@ def Com_main():
         EncodeStatus=status_controler()
         # プロポデータ取得
         PropoData=propo.getPropoData()
+        # print(PropoData)
         # 送信データ作成
         SendData=[*PropoData,*EncodeStatus]
         ComAgent.sendto(pickle.dumps(SendData),(RasPi_IP,COMMON.RasPiPort))
