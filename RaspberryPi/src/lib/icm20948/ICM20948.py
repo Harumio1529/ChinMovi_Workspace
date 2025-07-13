@@ -27,7 +27,11 @@ class ICM20948():
             print("AK09916 connected!!")
         else :
             print("AK09916 No Connected ...")
-
+    
+    def change2int16(self,val):
+        if val>=0x8000:
+            val -= 0x10000
+        return val
 
     def setup(self):
         # set data container. it's numpy data.
@@ -35,8 +39,8 @@ class ICM20948():
         self.gy_data_raw=np.empty(3,dtype=np.int16)
         self.ac_data_raw=np.empty(3,dtype=np.int16)
         self.mag_data_raw=np.empty(3,dtype=np.int16)
-        self.gy_data=np.empty(3,dtype=np.float)
-        self.ac_data=np.empty(3,dtype=np.float)
+        self.gy_data=np.empty(3,dtype=np.float64)
+        self.ac_data=np.empty(3,dtype=np.float64)
         self.mag_data=np.empty(3,dtype=np.int16)
         # set offset num
         self.gyr_offset=[0,0,0]
@@ -128,7 +132,7 @@ class ICM20948():
         ans = self.i2c.read_i2c_block_data(imu_addr,0x33,6)
         # print([bin(ans[0]),bin(ans[1])])
         for i in range(3):
-            self.gy_data_raw[i]=((ans[(2*i)] << 8 | ans[(2*i)+1]))
+            self.gy_data_raw[i]=(self.change2int16(ans[(2*i)] << 8 | ans[(2*i)+1]))
             self.gy_data[i]=(self.gy_data_raw[i]/self.gy_sf)*d2r
         return [self.gy_data[0]-self.gyr_offset[0],self.gy_data[1]-self.gyr_offset[1],self.gy_data[2]-self.gyr_offset[2]]
     
@@ -137,7 +141,7 @@ class ICM20948():
         # 3axis data is into each 2byte from 0x2D
         ans = self.i2c.read_i2c_block_data(imu_addr,0x2D,6)
         for i in range(3):
-            self.ac_data_raw[i]=((ans[2*i] << 8 | ans[(2*i)+1]))
+            self.ac_data_raw[i]=(self.change2int16(ans[2*i] << 8 | ans[(2*i)+1]))
             self.ac_data[i]=self.ac_data_raw[i]/self.ac_sf
         return [self.ac_data[0]-self.acc_offset[0],self.ac_data[1]-self.acc_offset[1],self.ac_data[2]-self.acc_offset[2]]
     

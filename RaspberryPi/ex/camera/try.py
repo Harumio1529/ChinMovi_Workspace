@@ -55,11 +55,10 @@ cap = cv2.VideoCapture(0)
 
 while True:
     ret, low = cap.read()
+    h,w,c=low.shape
+    print(h)
+    print(w)
     frame=Clahe(low)
-    # print(type(frame))
-    # print(frame.nbytes)
-    # print(frame.itemsize)
-    # print(frame.size)
     cv2.imshow('image', frame)
     # cv2.imshow('image', low)
 

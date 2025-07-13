@@ -4,4 +4,7 @@ You need to install Lib.
 Run bellow script at Terminal.
 
 pip install opencv-python
-pip install 
+pip install keyboard
+
+Tested python env.:3.9.2
+numpy :1.20

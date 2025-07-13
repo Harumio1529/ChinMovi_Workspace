@@ -10,7 +10,7 @@ from lib.tb6612.tb6612 import TB6612
 
 
 #デバッグモード
-DEBUG_MODE=False 
+DEBUG_MODE=False
 
 # Queueデータの箱を準備する
 SensorData=queue.Queue()
@@ -44,20 +44,22 @@ def Com_Thred_main(ComAgent: socket.socket):
     # データの送信
     ComAgent.sendto(SendDataBin,(PC_IP,COMMON.PCPort))
 
-    
-
     # # データ受信
     try:
         RecvData,Fromaddr=ComAgent.recvfrom(1024)
         PropoData.put(pickle.loads(RecvData))
+        STSOCKET="WORKING"
 
     except socket.timeout:
         STSOCKET="TIMEOUT"
         print("timeout")
 
+
+### モジュール操作用スレッド ###
 def Module_Thred():
     COMMON.scheduler(0.01,Module_Thred_main)
 
+# モジュール操作用スレッドmain関数 #
 def Module_Thred_main():
     data=PropoData.get()[0]
     input=int(2048+(data*2047))
@@ -103,10 +105,12 @@ STSOCKET="COM_OK"
 # COMエージェント立ち上げ
 STSOCKET="STANDUP_COMAGENT"
 ComAgent=socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-ComAgent.settimeout(0.005)
+ComAgent.settimeout(1)
 ComAgent.bind((RasPI_IP, COMMON.RasPiPort))
 STSOCKET="READY"
 print("socket com is READY!")
+
+threading.Thread(target=Com_Thred,args=(ComAgent,),daemon=True).start()
 
 # センサモジュール起動
 IMU=ICM20948(i2c)
@@ -148,8 +152,7 @@ CHU1=TB6612(i2c,PCA9685,7,20,21,LimitEnable=False)
 CHU2=TB6612(i2c,PCA9685,6,12,16,LimitEnable=False)
 # キャリブレーション(と言ってるが動かしてるだけ)
 STCHU="CARIBRATION"
-STCHU=CHU1.caribration()
-if CHU1.caribration()=="CARIBRATION_OK" and CHU1.caribration()=="CARIBRATION_OK":
+if CHU1.caribration()=="CARIBRATION_OK" and CHU2.caribration()=="CARIBRATION_OK":
     STCHU="CARIBRATION_OK"
 
 STCHU="READY"
@@ -157,7 +160,7 @@ print("CHUSYAKI is READY !")
 time.sleep(2)
 
 
-threading.Thread(target=Com_Thred,args=(ComAgent,),daemon=True).start()
+
 threading.Thread(target=Module_Thred,daemon=True).start()
 
 try:
@@ -166,5 +169,6 @@ try:
 except KeyboardInterrupt:
     TH.close()
     SRV.close()
-    CHU.close()
+    CHU1.close()
+    CHU2.close()
 
