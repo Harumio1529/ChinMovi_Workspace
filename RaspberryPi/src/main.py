@@ -1,6 +1,7 @@
 # 標準ライブラリをimport
 import sys ,os
 import socket,time,pickle,smbus,threading,queue
+from multiprocessing import Process
 
 # 自作ライブラリをimport
 from lib.icm20948.ICM20948 import ICM20948
@@ -8,6 +9,8 @@ from lib.madgwickfilter.madgwickahrs import MadgwickAHRS
 from lib.PCA9685.pca9685 import PCA9685,THRUSTER,SERVO
 from lib.tb6612.tb6612 import TB6612
 from lib.CustomQueue.customqueue import CustomQueue
+from lib.camera.Camera import camera
+
 
 
 #デバッグモード
@@ -116,6 +119,10 @@ def Sensor_Thred_main():
     eul=EST.quaternion.to_euler_angles_ZYX()
     SensorData.put([*gyr,*acc,*eul])
 
+
+### カメラ処理用スレッド（別コアで駆動） ###
+def Camera_Process_main():
+    
 
 
 
