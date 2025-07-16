@@ -14,7 +14,7 @@ from lib.Camera.camera import camera
 
 
 #デバッグモード
-DEBUG_MODE=True
+DEBUG_MODE=False
 DEBUG_PRINT=False
 
 #デバッグ用コンソール出力
@@ -129,8 +129,11 @@ def Camera_Process_main():
         if STCAMERA=="SERCH_MODE":
             ret, low = cap.read()
             frame=CM.Clahe(low)
+            
         else :
             ret, frame = cap.read()
+            frame=CM.Clahe(frame)
+        
         cv2.imshow('image', frame)
         key = cv2.waitKey(1)
         if key == ord('q'):  # qキーで終了
@@ -236,6 +239,7 @@ CM=camera()
 Camera_Process=Process(target=Camera_Process_main)
 Camera_Process.daemon=True
 Camera_Process.start()
+STCAMERA.put("READY")
 
 
 
