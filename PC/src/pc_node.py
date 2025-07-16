@@ -41,6 +41,7 @@ STIMU=""
 STTHRUST=""
 STSERVO=""
 STCHU=""
+STCAMERA=""
 
 #コントローラー初期化
 stknum=6
@@ -54,22 +55,23 @@ ComAgent.bind((PC_IP,COMMON.PCPort))
 ComAgent.settimeout(1)
 
 def data_separeter(data):
-    global acc,gyr,eul,STSOCKET,STIMU,STTHRUST,STSERVO,STCHU
+    global acc,gyr,eul,STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA
     acc=data[0:3]
     gyr=data[3:6]
     eul=data[6:9]
-    [STSOCKET,STIMU,STTHRUST,STSERVO,STCHU]=SA.Decoder(data[9:])
+    [STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA]=SA.Decoder(data[9:])
 
 def status_controler():
-    global STSOCKET,STIMU,STTHRUST,STSERVO,STCHU
+    global STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA
     # ステータスを監視して、全部ReadyならWorkingに遷移してもらう
-    if STIMU=="READY" and STTHRUST=="READY" and STSERVO=="READY" and STCHU=="READY":
+    if STIMU=="READY" and STTHRUST=="READY" and STSERVO=="READY" and STCHU=="READY" and STCAMERA=="READY":
         STIMU="WORKING"
         STTHRUST="WORKING"
         STSERVO="WORKING"
         STCHU="WORKING"
+        STCAMERA="SERCH_MODE"
     # ステータスのエンコード
-    return SA.Encoder([STSOCKET,STIMU,STTHRUST,STSERVO,STCHU])
+    return SA.Encoder([STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA])
 
     
     
@@ -90,7 +92,7 @@ def Com_main():
         SendData=[*PropoData,*EncodeStatus]
         ComAgent.sendto(pickle.dumps(SendData),(RasPi_IP,COMMON.RasPiPort))
         # print(pickle.loads(data))
-        print([STSOCKET,STIMU,STTHRUST,STSERVO,STCHU])
+        print([STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA])
     
     except socket.timeout:
         print("timeout")

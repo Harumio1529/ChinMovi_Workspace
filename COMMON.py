@@ -89,7 +89,7 @@ class StatusAnalyzer:
     
     # status -> [STSOCKET , STIMU , STTHRUST ,STSERVO , STCHU, STCAMERA]の順番
     def Encoder(self,status):
-        status_num=[-1,-1,-1,-1,-1]
+        status_num=[-1,-1,-1,-1,-1,-1]
         num=0
         pos=0
         for i in self.STATUS:
@@ -105,7 +105,7 @@ class StatusAnalyzer:
         return status_num
     
     def Decoder(self,status_num):
-        status_str=["ERROR","ERROR","ERROR","ERROR","ERROR"]
+        status_str=["ERROR","ERROR","ERROR","ERROR","ERROR","ERROR"]
         num=0
         for i in self.STATUS:
             if status_num[num]>=0:
