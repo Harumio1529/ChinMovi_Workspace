@@ -79,7 +79,7 @@ class StatusAnalyzer:
         self.STTHRUST_List=["PREPARING","CALIBRATION","CALIBRATION_OK","READY","WORKING"]
         self.STSERVO_List=["PREPARING","CARIBRATION","CARIBRATION_OK","READY","WORKING"]
         self.STCHU_List=["PREPARING","CARIBRATION","CARIBRATION_OK","READY","WORKING"]
-        self.STCAMERA_List=["PREPAREING","CAPTURE_OK","READY","SERCH_MODE","VIDEO_MODE"]
+        self.STCAMERA_List=["PREPARING","CAPTURE_OK","READY","SERCH_MODE","VIDEO_MODE"]
         self.STATUS=[self.STSOCKET_List,
                      self.STIMU_List,
                      self.STTHRUST_List,
