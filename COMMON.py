@@ -79,14 +79,20 @@ class StatusAnalyzer:
         self.STTHRUST_List=["PREPARING","CALIBRATION","CALIBRATION_OK","READY","WORKING"]
         self.STSERVO_List=["PREPARING","CARIBRATION","CARIBRATION_OK","READY","WORKING"]
         self.STCHU_List=["PREPARING","CARIBRATION","CARIBRATION_OK","READY","WORKING"]
+        self.STCAMERA_List=["PREPAREING","CAPTURE_OK","READY","SERCH_MODE","VIDEO_MODE"]
+        self.STATUS=[self.STSOCKET_List,
+                     self.STIMU_List,
+                     self.STTHRUST_List,
+                     self.STSERVO_List,
+                     self.STCHU_List,
+                     self.STCAMERA_List]
     
-    # status -> [STSOCKET , STIMU , STTHRUST ,STSERVO , STCHU]の順番
+    # status -> [STSOCKET , STIMU , STTHRUST ,STSERVO , STCHU, STCAMERA]の順番
     def Encoder(self,status):
-        STATUS=[self.STSOCKET_List,self.STIMU_List,self.STTHRUST_List,self.STSERVO_List,self.STCHU_List]
         status_num=[-1,-1,-1,-1,-1]
         num=0
         pos=0
-        for i in STATUS:
+        for i in self.STATUS:
             pos=0
             for j in i:
                 if status[num]==j:
@@ -99,10 +105,9 @@ class StatusAnalyzer:
         return status_num
     
     def Decoder(self,status_num):
-        STATUS=[self.STSOCKET_List,self.STIMU_List,self.STTHRUST_List,self.STSERVO_List,self.STCHU_List]
         status_str=["ERROR","ERROR","ERROR","ERROR","ERROR"]
         num=0
-        for i in STATUS:
+        for i in self.STATUS:
             if status_num[num]>=0:
                 status_str[num]=i[status_num[num]]
             num+=1

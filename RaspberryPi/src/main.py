@@ -1,6 +1,6 @@
 # 標準ライブラリをimport
 import sys ,os
-import socket,time,pickle,smbus,threading,queue
+import socket,time,pickle,smbus,threading,queue,cv2
 from multiprocessing import Process
 
 # 自作ライブラリをimport
@@ -9,12 +9,12 @@ from lib.madgwickfilter.madgwickahrs import MadgwickAHRS
 from lib.PCA9685.pca9685 import PCA9685,THRUSTER,SERVO
 from lib.tb6612.tb6612 import TB6612
 from lib.CustomQueue.customqueue import CustomQueue
-from lib.camera.Camera import camera
+from lib.Camera.camera import camera
 
 
 
 #デバッグモード
-DEBUG_MODE=False
+DEBUG_MODE=True
 DEBUG_PRINT=False
 
 #デバッグ用コンソール出力
@@ -30,12 +30,7 @@ STIMU=CustomQueue(init_item="PREPARING",maxsize=10)
 STTHRUST=CustomQueue(init_item="PREPARING",maxsize=10)
 STSERVO=CustomQueue(init_item="PREPARING",maxsize=10)
 STCHU=CustomQueue(init_item="PREPARING",maxsize=10)
-# 各種ステータス
-# STSOCKET.put("PREPARING")
-# STIMU.put("PREPARING")
-# STTHRUST.put("PREPARING")
-# STSERVO.put("PREPARING")
-# STCHU.put("PREPARING")
+STCAMERA=CustomQueue(init_item="PREPARING",maxsize=10)
 
 
 #### 通信スレッド用関数 ####
@@ -43,7 +38,7 @@ def Com_Thred(ComAgent: socket.socket):
     COMMON.scheduler(0.01,lambda: Com_Thred_main(ComAgent))
 
 def data_separater(data):
-    StatusData=SA.Decoder(data[len(data)-5:])
+    StatusData=SA.Decoder(data[len(data)-6:])
     if StatusData[0]=="WORKING":
         STSOCKET.put(StatusData[0])
     if StatusData[1]=="WORKING":
@@ -54,7 +49,9 @@ def data_separater(data):
         STSERVO.put(StatusData[3])
     if StatusData[4]=="WORKING":
         STCHU.put(StatusData[4])
-    print([STSOCKET.peek(),STIMU.peek(),STTHRUST.peek(),STSERVO.peek(),STCHU.peek()])
+    if StatusData[5]=="SERCH_MODE" or StatusData[5]=="VIDEO_MODE":
+        STCAMERA.put(StatusData[5])
+    print([STSOCKET.peek(),STIMU.peek(),STTHRUST.peek(),STSERVO.peek(),STCHU.peek(),STCAMERA.peek()])
 
     
 
@@ -62,9 +59,15 @@ def data_separater(data):
 def Com_Thred_main(ComAgent: socket.socket):
     # 送信用データまとめ
     # 送信用データの中身([byte])
-    # [ACC_X(4),ACC_Y(4),ACC_Z(4),GYR_X(4),GYR_Y(4),GYR_Z(4),PITCH(4),ROLL(4),YAW(4),STSOCKET(1),STIMU(1),STTHRUST(1),STSERVO(1),STCHU(1)]
+    # [ACC_X(4),ACC_Y(4),ACC_Z(4),GYR_X(4),GYR_Y(4),GYR_Z(4),PITCH(4),ROLL(4),YAW(4),STSOCKET(1),STIMU(1),STTHRUST(1),STSERVO(1),STCHU(1),STCAMERA(1)]
     # ステータス信号のエンコード
-    EncodeStatus=SA.Encoder([STSOCKET.get_emptychck(),STIMU.get_emptychck(),STTHRUST.get_emptychck(),STSERVO.get_emptychck(),STCHU.get_emptychck()])
+    EncodeStatus=SA.Encoder([STSOCKET.get_emptychck(),
+                             STIMU.get_emptychck(),
+                             STTHRUST.get_emptychck(),
+                             STSERVO.get_emptychck(),
+                             STCHU.get_emptychck(),
+                             STCAMERA.get_emptychck()])
+
     # print(EncodeStatus)
     # センサデータをぶち込む
     if STIMU.get_emptychck()!="WORKING":
@@ -122,7 +125,19 @@ def Sensor_Thred_main():
 
 ### カメラ処理用スレッド（別コアで駆動） ###
 def Camera_Process_main():
-    
+    while True:
+        if STCAMERA=="SERCH_MODE":
+            ret, low = cap.read()
+            frame=CM.Clahe(low)
+        else :
+            ret, frame = cap.read()
+        cv2.imshow('image', frame)
+        key = cv2.waitKey(1)
+        if key == ord('q'):  # qキーで終了
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
 
 
 
@@ -212,6 +227,17 @@ if CHU1.caribration()=="CARIBRATION_OK" and CHU2.caribration()=="CARIBRATION_OK"
 STCHU.put("READY")
 debugprint("CHUSYAKI is READY !")
 time.sleep(2)
+
+# カメラモジュール起動
+cap=cv2.VideoCapture(0)
+STCAMERA.put("CAPTURE_OK")
+debugprint("Capture OK!")
+CM=camera()
+Camera_Process=Process(target=Camera_Process_main)
+Camera_Process.daemon=True
+Camera_Process.start()
+
+
 
 
 
