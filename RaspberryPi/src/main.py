@@ -10,13 +10,18 @@ from lib.PCA9685.pca9685 import PCA9685,THRUSTER,SERVO
 from lib.tb6612.tb6612 import TB6612
 from lib.CustomQueue.customqueue import CustomQueue
 from lib.Camera.camera import camera
+from lib.System import SystemCheck
 
+SystemCheck.wifi_off()
 
 
 ### デバッグモード ###
 DEBUG_MODE=False
 DEBUG_PRINT=False
 #モジュール使用不使用選択
+THRUST_ENABLE=False
+SERVO_ENABLE=False
+CHUSYAKI_ENABLE=False
 CAMERA_ENABLE=False
 
 
@@ -26,7 +31,7 @@ def debugprint(data):
         print(data)
 
 # Queueデータの箱を準備する
-SensorData=queue.Queue()
+SensorData=CustomQueue(init_item=([0]*9),maxsize=10)
 PropoData=CustomQueue(init_item=([0]*10),maxsize=10)
 STSOCKET=CustomQueue(init_item="PREPARING",maxsize=10)
 STIMU=CustomQueue(init_item="PREPARING",maxsize=10)
@@ -71,8 +76,8 @@ def data_separater(data):
         STCONTROLLER.put(StatusData[6])
     
     
-    print([STSOCKET.peek(),STIMU.peek(),STTHRUST.peek(),STSERVO.peek(),STCHU.peek(),STCAMERA.peek(),STCONTROLLER.peek(),
-           *PropoData.peek()])
+    # print([STSOCKET.peek(),STIMU.peek(),STTHRUST.peek(),STSERVO.peek(),STCHU.peek(),STCAMERA.peek(),STCONTROLLER.peek(),
+    #        *PropoData.peek()])
 
     
 
@@ -87,7 +92,8 @@ def Com_Thred_main(ComAgent: socket.socket):
                              STTHRUST.get_emptychck(),
                              STSERVO.get_emptychck(),
                              STCHU.get_emptychck(),
-                             STCAMERA.get_emptychck()])
+                             STCAMERA.get_emptychck(),
+                             STCONTROLLER.get_emptychck()])
 
     # print(EncodeStatus)
     # センサデータをぶち込む
@@ -97,7 +103,8 @@ def Com_Thred_main(ComAgent: socket.socket):
                         0.0,0.0,0.0,
                         *EncodeStatus]
     else :
-        SendData=[*SensorData.get(),*EncodeStatus]
+        SendData=[*SensorData.get_emptychck(),*EncodeStatus]
+        # print(SendData)
         
     
     # データのバイナリ化
@@ -110,12 +117,11 @@ def Com_Thred_main(ComAgent: socket.socket):
     try:
         RecvData,Fromaddr=ComAgent.recvfrom(1024)
         data_separater(pickle.loads(RecvData))
-        # print(pickle.loads(RecvData))
         STSOCKET.put("WORKING")
 
     except socket.timeout:
         STSOCKET.put("TIMEOUT")
-        print("timeout")
+        # print("timeout")
 
 
 ### モジュール操作用スレッド ###
@@ -190,10 +196,8 @@ if DEBUG_MODE:
 
 else:
     PC_IP,RasPI_IP=COMMON.CheckIPAddress("RaspberryPi")
-debugprint("aho")
 debugprint(STSOCKET.empty())
 STSOCKET.put("COM_OK")
-debugprint("baka")
 
 # COMエージェント立ち上げ
 STSOCKET.put("STANDUP_COMAGENT")
@@ -206,7 +210,7 @@ debugprint("socket com is READY!")
 threading.Thread(target=Com_Thred,args=(ComAgent,),daemon=True).start()
 
 # センサモジュール起動
-IMU=ICM20948(i2c)
+IMU=ICM20948(i2c,DEBUG_PRINT)
 IMU.hello()
 IMU.setup()
 # センサ設定
@@ -221,33 +225,36 @@ EST=MadgwickAHRS(sampleperiod=0.01,beta=1.0)
 STIMU.put("READY")
 debugprint("IMU and Estimation is READY !")
 
-# スラスタモジュール起動
-TH=THRUSTER(i2c,0,1,2,3)
-# キャリブレーション
-STTHRUST.put("CALIBRATION")
-STTHRUST.put(TH.Calibration())
-TH.set_thrust(1600,1600,1600,1600)
-time.sleep(1)
+if THRUST_ENABLE:
+    # スラスタモジュール起動
+    TH=THRUSTER(i2c,0,1,2,3,DEBUG_PRINT)
+    # キャリブレーション
+    STTHRUST.put("CALIBRATION")
+    STTHRUST.put(TH.Calibration())
+    TH.set_thrust(1600,1600,1600,1600)
+    time.sleep(1)
 STTHRUST.put("READY")
 debugprint("THRUSTER is READY !")
 
-# サーボモジュール起動
-SRV=SERVO(i2c,8,9)
-# キャリブレーション（と言ってるが動かしてるだけ）
-STSERVO.put("CARIBRATION")
-time.sleep(0.1)
-STSERVO.put(SRV.Caribration())
+if SERVO_ENABLE:
+    # サーボモジュール起動
+    SRV=SERVO(i2c,8,9,DEBUG_PRINT)
+    # キャリブレーション（と言ってるが動かしてるだけ）
+    STSERVO.put("CARIBRATION")
+    time.sleep(0.1)
+    STSERVO.put(SRV.Caribration())
 STSERVO.put("READY")
 time.sleep(0.1)
 debugprint("SERVO is READY !")
 
-# チュウシャキモジュール起動
-CHU1=TB6612(i2c,PCA9685,7,20,21,LimitEnable=False)
-CHU2=TB6612(i2c,PCA9685,6,12,16,LimitEnable=False)
-# キャリブレーション(と言ってるが動かしてるだけ)
-STCHU.put("CARIBRATION")
-if CHU1.caribration()=="CARIBRATION_OK" and CHU2.caribration()=="CARIBRATION_OK":
-    STCHU.put("CARIBRATION_OK")
+if CHUSYAKI_ENABLE:
+    # チュウシャキモジュール起動
+    CHU1=TB6612(i2c,PCA9685,7,20,21,DEBUG_PRINT,LimitEnable=False)
+    CHU2=TB6612(i2c,PCA9685,6,12,16,DEBUG_PRINT,LimitEnable=False)
+    # キャリブレーション(と言ってるが動かしてるだけ)
+    STCHU.put("CARIBRATION")
+    if CHU1.caribration()=="CARIBRATION_OK" and CHU2.caribration()=="CARIBRATION_OK":
+        STCHU.put("CARIBRATION_OK")
 
 STCHU.put("READY")
 debugprint("CHUSYAKI is READY !")
@@ -258,7 +265,7 @@ if CAMERA_ENABLE:
     cap=cv2.VideoCapture(0)
     STCAMERA.put("CAPTURE_OK")
     debugprint("Capture OK!")
-    CM=camera()
+    CM=camera(DEBUG_PRINT)
     Camera_Process=Process(target=Camera_Process_main)
     Camera_Process.daemon=True
     Camera_Process.start()
@@ -279,4 +286,5 @@ except KeyboardInterrupt:
     SRV.close()
     CHU1.close()
     CHU2.close()
+    SystemCheck.wifi_on()
 
