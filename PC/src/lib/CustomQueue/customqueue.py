@@ -1,6 +1,7 @@
 import queue
+from multiprocessing import Queue
 
-class CustomQueue(queue.Queue):
+class CustomQueue_withThred(queue.Queue):
     def __init__(self, init_item,maxsize = 1):
         super().__init__(maxsize)
         self.latchval=init_item
@@ -24,5 +25,27 @@ class CustomQueue(queue.Queue):
     
     def peek(self):
         return self.latchval
+
+class CustomQueue_withCoreCom():
+    def __init__(self, init_item,maxsize = 1):
+        self.queue=Queue(maxsize=maxsize)
+        self.latchval=init_item
+        self.queue.put(init_item)
+    
+    def get_emptychck(self):
+        if not self.queue.empty():
+            self.latchval=self.queue.get_nowait()
+        return self.latchval
+    
+    def put(self,item):
+        while not self.queue.empty():
+            self.queue.get_nowait()
+        self.latchval=item
+        self.queue.put(self.latchval)
+    
+    def peek(self):
+        return self.latchval
+
+    
                 
             

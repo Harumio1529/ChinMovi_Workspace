@@ -8,7 +8,7 @@ from lib.icm20948.ICM20948 import ICM20948
 from lib.madgwickfilter.madgwickahrs import MadgwickAHRS
 from lib.PCA9685.pca9685 import PCA9685,THRUSTER,SERVO
 from lib.tb6612.tb6612 import TB6612
-from lib.CustomQueue.customqueue import CustomQueue
+from lib.CustomQueue.customqueue import CustomQueue_withThred
 from lib.Camera.camera import camera
 
 
@@ -27,14 +27,14 @@ def debugprint(data):
 
 # Queueデータの箱を準備する
 SensorData=queue.Queue()
-PropoData=CustomQueue(init_item=([0]*10),maxsize=10)
-STSOCKET=CustomQueue(init_item="PREPARING",maxsize=10)
-STIMU=CustomQueue(init_item="PREPARING",maxsize=10)
-STTHRUST=CustomQueue(init_item="PREPARING",maxsize=10)
-STSERVO=CustomQueue(init_item="PREPARING",maxsize=10)
-STCHU=CustomQueue(init_item="PREPARING",maxsize=10)
-STCAMERA=CustomQueue(init_item="PREPARING",maxsize=10)
-STCONTROLLER=CustomQueue(init_item="PREPARING",maxsize=10)
+PropoData=CustomQueue_withThred(init_item=([0]*10),maxsize=10)
+STSOCKET=CustomQueue_withThred(init_item="PREPARING",maxsize=10)
+STIMU=CustomQueue_withThred(init_item="PREPARING",maxsize=10)
+STTHRUST=CustomQueue_withThred(init_item="PREPARING",maxsize=10)
+STSERVO=CustomQueue_withThred(init_item="PREPARING",maxsize=10)
+STCHU=CustomQueue_withThred(init_item="PREPARING",maxsize=10)
+STCAMERA=CustomQueue_withThred(init_item="PREPARING",maxsize=10)
+STCONTROLLER=CustomQueue_withThred(init_item="PREPARING",maxsize=10)
 
 
 #### 通信スレッド用関数 ####

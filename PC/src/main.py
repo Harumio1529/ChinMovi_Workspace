@@ -3,11 +3,10 @@ import os
 
 # ライブラリインポート
 import socket,time,pickle,math
-from multiprocessing import Process
+from multiprocessing import Process,Array,Value,Lock
 
 # 自作ライブラリ
 from lib.propo.Propo import ps4
-from lib.CustomQueue.customqueue import CustomQueue
 import gui
 
 
@@ -25,53 +24,57 @@ DEBUG_MODE=False
 
 
 # データコンテナ
-acc=CustomQueue(init_item=([0]*3),maxsize=10)
-gyr=CustomQueue(init_item=([0]*3),maxsize=10)
-eul=CustomQueue(init_item=([0]*3),maxsize=10)
-STSOCKET=CustomQueue(init_item="",maxsize=10)
-STIMU=CustomQueue(init_item="",maxsize=10)
-STTHRUST=CustomQueue(init_item="",maxsize=10)
-STSERVO=CustomQueue(init_item="",maxsize=10)
-STCHU=CustomQueue(init_item="",maxsize=10)
-STCAMERA=CustomQueue(init_item="",maxsize=10)
-STCONTROLLER=CustomQueue(init_item="",maxsize=10)
+acc=Array("d",3)
+gyr=Array("d",3)
+eul=Array("d",3)
+STSOCKET=Value("i",0)
+STIMU=Value("i",0)
+STTHRUST=Value("i",0)
+STSERVO=Value("i",0)
+STCHU=Value("i",0)
+STCAMERA=Value("i",0)
+STCONTROLLER=Value("i",0)
 
 #コントローラー初期化
 stknum=6
 btnnum=16
 propo=ps4(stknum,btnnum)
-PropoData=CustomQueue(init_item=([0]*(stknum+btnnum)),maxsize=10)
+PropoData=Array("d",(stknum+btnnum))
+
+def data_input(container,data,lock):
+    with lock:
+        for i in range(data):
+            container[i]=data[i]
 
 
+def data_separeter(data,acc,gyr,eul,STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCONTROLLER):
+        data_input(acc,data[0:3],Lock)
+        data_input(gyr,data[3:6],Lock)
+        data_input(eul,data[6:9],Lock)
+        with Lock:
+            STSOCKET.value=data[9]
+            STIMU.value=data[10]
+            STTHRUST.value=data[11]
+            STSERVO.value=data[12]
+            STCHU.value=data[13]
+            STCAMERA.value=data[14]
+            STCONTROLLER.value-data[15]
 
-def data_separeter(data):
-    # print(data)
-    acc.put(data[0:3])
-    gyr.put(data[3:6])
-    eul.put(data[6:9])
-    StatuData=SA.Decoder(data[9:])
-    STSOCKET.put(StatuData[0])
-    STIMU.put(StatuData[1])
-    STTHRUST.put(StatuData[2])
-    STSERVO.put(StatuData[3])
-    STCHU.put(StatuData[4])
-    STCAMERA.put(StatuData[5])
-    STCONTROLLER.put(StatuData[6])
-
-def status_controler():
+def status_controler(STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCONTROLLER):
+    with Lock:
     # ステータスを監視して、全部ReadyならWorkingに遷移してもらう
-    if STIMU.peek()=="READY" and STTHRUST.peek()=="READY" and STSERVO.peek()=="READY" and STCHU.peek()=="READY" and STCAMERA.peek()=="READY":
-        STIMU.put("WORKING")
-        STTHRUST.put("WORKING")
-        STSERVO.put("WORKING")
-        STCHU.put("WORKING")
-        STCAMERA.put("SERCH_MODE")
-        STCONTROLLER.put("MANUAL_CONTROL")
-    # ステータスのエンコード
-    return SA.Encoder([STSOCKET.peek(),STIMU.peek(),STTHRUST.peek(),STSERVO.peek(),STCHU.peek(),STCAMERA.peek(),STCONTROLLER.peek()])
+        if STIMU.value=="READY" and STTHRUST.value=="READY" and STSERVO.value=="READY" and STCHU.value=="READY" and STCAMERA.value=="READY":
+            STIMU.value="WORKING"
+            STTHRUST.value="WORKING"
+            STSERVO.value="WORKING"
+            STCHU.value="WORKING"
+            STCAMERA.value="SERCH_MODE"
+            STCONTROLLER.value="MANUAL_CONTROL"
+        # ステータスのエンコード
+        return SA.Encoder([STSOCKET.value,STIMU.value,STTHRUST.value,STSERVO.value,STCHU.value,STCAMERA.value,STCONTROLLER.value])
 
     
-def Com_Process():
+def Com_Process(acc,gyr,eul,STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCONTROLLER):
     # 通信チェック
     # デバッグモードなら通信チェックなし
     if DEBUG_MODE:
@@ -84,17 +87,17 @@ def Com_Process():
     ComAgent=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
     ComAgent.bind((PC_IP,COMMON.PCPort))
     ComAgent.settimeout(1)
-    COMMON.scheduler(0.01,lambda:Com_Process_main(ComAgent,RasPi_IP))
+    COMMON.scheduler(0.01,lambda:Com_Process_main(ComAgent,RasPi_IP,acc,gyr,eul,STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCONTROLLER))
 
 
-def Com_Process_main(ComAgent,RasPi_IP):
+def Com_Process_main(ComAgent,RasPi_IP,acc,gyr,eul,STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCONTROLLER):
     try:
         # データ受信
         data,addr=ComAgent.recvfrom(1024)
         # 受信データ分割
-        data_separeter(pickle.loads(data))
+        data_separeter(pickle.loads(data),acc,gyr,eul,STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCONTROLLER)
         # ステータス監視
-        EncodeStatus=status_controler()
+        EncodeStatus=status_controler(STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCONTROLLER)
         # プロポデータ取得
         PropoData.put(propo.getPropoData())
         # 送信データ作成
@@ -110,13 +113,16 @@ def Com_Process_main(ComAgent,RasPi_IP):
 
 
 
-def function():
-    print(acc.get_emptychck())
-    return acc.get_emptychck()
+def function(lock):
+    with lock:
+        return list(acc)
 
 
 if __name__=="__main__":
-    CP=Process(target=Com_Process)
+    CP=Process(target=Com_Process,
+               args=(
+                   acc,gyr,eul,
+                   STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCONTROLLER))
     CP.daemon=True
     CP.start()
     gui.gui_start(function)
