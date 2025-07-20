@@ -208,9 +208,24 @@ class MS5837(object):
         return n_rem ^ 0x00
     
 class MS5837_30BA(MS5837):
-    def __init__(self, bus=1):
-        MS5837.__init__(self, MODEL_30BA, bus)
+    def __init__(self, i2c):
+        MS5837.__init__(self,i2c,MODEL_30BA)
         
 class MS5837_02BA(MS5837):
-    def __init__(self, bus=1):
-        MS5837.__init__(self, MODEL_02BA, bus)
+    def __init__(self, i2c):
+        MS5837.__init__(self, i2c,MODEL_02BA)
+
+
+if __name__=="__main__":
+    i2c=smbus.SMBus(1)
+    depthSensor = MS5837_30BA(i2c)
+    depthSensor.init()
+    depthSensor.read(OSR_256)
+    depthSensor.setFluidDensity(DENSITY_FRESHWATER) # Use predefined saltwater density
+
+    while True:
+        depthSensor.read(OSR_256)
+        temp = depthSensor.temperature()
+        depth = depthSensor.depth()
+
+

@@ -13,9 +13,12 @@ from lib.Camera.camera import camera
 
 
 
-#デバッグモード
+### デバッグモード ###
 DEBUG_MODE=False
 DEBUG_PRINT=False
+#モジュール使用不使用選択
+CAMERA_ENABLE=False
+
 
 #デバッグ用コンソール出力
 def debugprint(data):
@@ -24,21 +27,34 @@ def debugprint(data):
 
 # Queueデータの箱を準備する
 SensorData=queue.Queue()
-PropoData=queue.Queue()
+PropoData=CustomQueue(init_item=([0]*10),maxsize=10)
 STSOCKET=CustomQueue(init_item="PREPARING",maxsize=10)
 STIMU=CustomQueue(init_item="PREPARING",maxsize=10)
 STTHRUST=CustomQueue(init_item="PREPARING",maxsize=10)
 STSERVO=CustomQueue(init_item="PREPARING",maxsize=10)
 STCHU=CustomQueue(init_item="PREPARING",maxsize=10)
 STCAMERA=CustomQueue(init_item="PREPARING",maxsize=10)
+STCONTROLLER=CustomQueue(init_item="PREPARING",maxsize=10)
 
 
 #### 通信スレッド用関数 ####
 def Com_Thred(ComAgent: socket.socket):
     COMMON.scheduler(0.01,lambda: Com_Thred_main(ComAgent))
 
+# プロポのデータを選別する。
+def data_selector(data):
+    # 使用データは設計書参照
+    return [data[0],data[1],
+            data[4],data[5],
+            data[15],data[16],
+            data[17],data[18],data[19],data[20]]
+    
+# 通信データをステータスとプロポのデータに分ける
 def data_separater(data):
-    StatusData=SA.Decoder(data[len(data)-6:])
+    # 前から22個はプロポのデータが入ってくる
+    PropoData.put(data_selector(data[:22]))
+    # それより後ろはステータスのデータ
+    StatusData=SA.Decoder(data[22:])
     if StatusData[0]=="WORKING":
         STSOCKET.put(StatusData[0])
     if StatusData[1]=="WORKING":
@@ -51,7 +67,12 @@ def data_separater(data):
         STCHU.put(StatusData[4])
     if StatusData[5]=="SERCH_MODE" or StatusData[5]=="VIDEO_MODE":
         STCAMERA.put(StatusData[5])
-    print([STSOCKET.peek(),STIMU.peek(),STTHRUST.peek(),STSERVO.peek(),STCHU.peek(),STCAMERA.peek()])
+    if StatusData[6]!="PREPARING":
+        STCONTROLLER.put(StatusData[6])
+    
+    
+    print([STSOCKET.peek(),STIMU.peek(),STTHRUST.peek(),STSERVO.peek(),STCHU.peek(),STCAMERA.peek(),STCONTROLLER.peek(),
+           *PropoData.peek()])
 
     
 
@@ -101,13 +122,14 @@ def Com_Thred_main(ComAgent: socket.socket):
 def Module_Thred():
     COMMON.scheduler(0.01,Module_Thred_main)
 
+# 
+
 # モジュール操作用スレッドmain関数 #
 def Module_Thred_main():
     data=PropoData.get()[0]
-    input=int(2048+(data*2047))
+    input_srv=int(2048+(data*2047))
     input_th=int(1600+(data*600))
-    print(input)
-    SRV.set_servo(input,input)
+    SRV.set_servo(input_srv,input_srv)
     TH.set_thrust(input_th,input_th,input_th,input_th)
 
 ### センサーデータ取得用スレッド ###
@@ -231,16 +253,17 @@ STCHU.put("READY")
 debugprint("CHUSYAKI is READY !")
 time.sleep(2)
 
-# カメラモジュール起動
-cap=cv2.VideoCapture(0)
-STCAMERA.put("CAPTURE_OK")
-debugprint("Capture OK!")
-CM=camera()
-Camera_Process=Process(target=Camera_Process_main)
-Camera_Process.daemon=True
-Camera_Process.start()
+if CAMERA_ENABLE:
+    # カメラモジュール起動
+    cap=cv2.VideoCapture(0)
+    STCAMERA.put("CAPTURE_OK")
+    debugprint("Capture OK!")
+    CM=camera()
+    Camera_Process=Process(target=Camera_Process_main)
+    Camera_Process.daemon=True
+    Camera_Process.start()
+    
 STCAMERA.put("READY")
-
 
 
 

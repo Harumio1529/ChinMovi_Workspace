@@ -87,6 +87,17 @@ class TB6612:
         GPIO.output(self.out1,False)
         GPIO.output(self.out2,False)
     
+    def set_chusyaki(self,num):
+        if num>=0.5:
+            self.move_oneside(2048)
+        
+        elif num<=-0.5:
+            self.move_otherside(2048)
+        
+        else:
+            self.stop()
+
+    
     def close(self):
         GPIO.cleanup()
         self.pca9685.set_pwm(self.pwm_pin,0,0)

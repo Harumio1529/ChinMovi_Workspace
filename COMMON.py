@@ -80,16 +80,18 @@ class StatusAnalyzer:
         self.STSERVO_List=["PREPARING","CARIBRATION","CARIBRATION_OK","READY","WORKING"]
         self.STCHU_List=["PREPARING","CARIBRATION","CARIBRATION_OK","READY","WORKING"]
         self.STCAMERA_List=["PREPARING","CAPTURE_OK","READY","SERCH_MODE","VIDEO_MODE"]
+        self.STCONTROLLER_List=["PREPARING","MANUAL_CONTROL","ATTITUDE_CONTROL","AUTO_CONTROL"]
         self.STATUS=[self.STSOCKET_List,
                      self.STIMU_List,
                      self.STTHRUST_List,
                      self.STSERVO_List,
                      self.STCHU_List,
-                     self.STCAMERA_List]
+                     self.STCAMERA_List,
+                     self.STCONTROLLER_List]
     
     # status -> [STSOCKET , STIMU , STTHRUST ,STSERVO , STCHU, STCAMERA]の順番
     def Encoder(self,status):
-        status_num=[-1,-1,-1,-1,-1,-1]
+        status_num=[-1]*len(self.STATUS)
         num=0
         pos=0
         for i in self.STATUS:
@@ -105,7 +107,7 @@ class StatusAnalyzer:
         return status_num
     
     def Decoder(self,status_num):
-        status_str=["ERROR","ERROR","ERROR","ERROR","ERROR","ERROR"]
+        status_str=["ERROR"]*len(self.STATUS)
         num=0
         for i in self.STATUS:
             if status_num[num]>=0:
