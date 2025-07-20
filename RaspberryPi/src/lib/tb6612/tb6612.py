@@ -3,7 +3,7 @@ import RPi.GPIO as GPIO
 import keyboard
 
 class TB6612:
-    def __init__(self,i2c,pwm_module,pwm_pin,out1,out2,LimitEnable=False):
+    def __init__(self,i2c,pwm_module,pwm_pin,out1,out2,DEBUG_PRINT,LimitEnable=False):
         self.LimitEnable=LimitEnable
         self.pca9685=pwm_module(i2c)
         self.pca9685.set_pwm_freq(250)
@@ -16,18 +16,23 @@ class TB6612:
         GPIO.setup(self.out2,GPIO.OUT)
         self.LimitTime_oneside=0
         self.LimitTime_otherside=0
+        self.DP=DEBUG_PRINT
+    
+    def debugprint(self,data):
+        if self.DP:
+            print(data)
     
     def time_calibration(self,speed):
         self.MaxTime=0
-        print("StartCalibration!")
+        self.debugprint("StartCalibration!")
         time.sleep(2)
-        print("3")
+        self.debugprint("3")
         time.sleep(1)
-        print("2")
+        self.debugprint("2")
         time.sleep(1)
-        print("1")
+        self.debugprint("1")
         time.sleep(1)
-        print("start!")
+        self.debugprint("start!")
         while True:
             start=time.time()
             self.pca9685.set_pwm(self.pwm_pin,0,speed)
@@ -37,8 +42,8 @@ class TB6612:
             self.MaxTime+=(end-start)
             if(keyboard.is_pressed("space")):
                 break
-        print("Calibration Fin!")
-        print(f"Result:{self.MaxTime:.2f}[s]")
+        self.debugprint("Calibration Fin!")
+        self.debugprint(f"Result:{self.MaxTime:.2f}[s]")
     
     def caribration(self):
         self.move_oneside(3000)

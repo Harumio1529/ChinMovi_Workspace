@@ -9,24 +9,31 @@ mag_addr=0x0C
 
 d2r=0.017453292519
 
+
+
 class ICM20948():
-    def __init__(self,module):
+    def __init__(self,module,DEBUG_PRINT):
         self.i2c=module
+        self.DP=DEBUG_PRINT
+
+    def debugprint(self,data):
+        if self.DP:
+            print(data)
 
     def hello(self):
         value = 0x00
         ans=self.i2c.read_byte_data(imu_addr,value)
         if ans==0xEA:
-            print("icm20948 connected!!")
+            self.debugprint("icm20948 connected!!")
         else :
-            print("icm20948 No Connected ...")
+            self.debugprint("icm20948 No Connected ...")
     
     def hello_mag(self):
         ans=self.i2c.read_byte_data(mag_addr,0x00)
         if ans==0x48:
-            print("AK09916 connected!!")
+            self.debugprint("AK09916 connected!!")
         else :
-            print("AK09916 No Connected ...")
+            self.debugprint("AK09916 No Connected ...")
     
     def change2int16(self,val):
         if val>=0x8000:
@@ -86,7 +93,7 @@ class ICM20948():
         else :
             val=0x00
             self.gy_sf=131.0
-            print("Argument error. set scale 250dps")
+            self.debugprint("Argument error. set scale 250dps")
 
         # set acc scale
         self.i2c.write_byte_data(imu_addr,0x01,val)
@@ -117,7 +124,7 @@ class ICM20948():
         else :
             val=0x01
             self.ac_sf=16384.0
-            print("Argument error. set scale 2G")
+            self.debugprint("Argument error. set scale 2G")
 
         # set acc scale
         self.i2c.write_byte_data(imu_addr,0x14,val)
@@ -170,9 +177,9 @@ class ICM20948():
     def calibration(self,iter):
         gyr_integ=[0,0,0]
         acc_integ=[0,0,0]
-        print("Dont move IMU !!")
+        self.debugprint("Dont move IMU !!")
         time.sleep(3)
-        print("Calibration Start!")
+        self.debugprint("Calibration Start!")
         time.sleep(2)
         
         for i in range(iter):

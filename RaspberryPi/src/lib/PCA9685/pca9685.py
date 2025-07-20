@@ -61,7 +61,7 @@ class PCA9685():
 
 class THRUSTER(PCA9685):
     # コンストラクタの引数には各スラスタを挿したピンの番号を記入        
-    def __init__(self,module,PinNum_Th1,PinNum_Th2,PinNum_Th3,PinNum_Th4):
+    def __init__(self,module,PinNum_Th1,PinNum_Th2,PinNum_Th3,PinNum_Th4,DEBUG_PRINT):
         super().__init__(module)
         # pwm周波数を定義
         self.set_pwm_freq(Fs)
@@ -71,19 +71,24 @@ class THRUSTER(PCA9685):
         self.PinTh4=PinNum_Th4
         self.Limitter_MAX=2200
         self.Limitter_MIN=1000
+        self.DP=DEBUG_PRINT
+    
+    def debugprint(self,data):
+        if self.DP:
+            print(data)
     
     def Calibration(self):
         self.set_pwm(self.PinTh1,0,1000)
         self.set_pwm(self.PinTh2,0,1000)
         self.set_pwm(self.PinTh3,0,1000)
         self.set_pwm(self.PinTh4,0,1000)
-        print("Hi Level")
+        self.debugprint("Hi Level")
         time.sleep(1)
         self.set_pwm(self.PinTh1,0,100)
         self.set_pwm(self.PinTh2,0,100)
         self.set_pwm(self.PinTh3,0,100)
         self.set_pwm(self.PinTh4,0,100)
-        print("Lo Level")
+        self.debugprint("Lo Level")
         time.sleep(1)
         return "CALIBRATION_OK"
 
@@ -105,13 +110,18 @@ class THRUSTER(PCA9685):
 
 class SERVO(PCA9685):
     # コンストラクタにはサーボを挿したピンの番号を記入
-    def __init__(self, module,PinNum_Srv1,PinNum_Srv2):
+    def __init__(self, module,PinNum_Srv1,PinNum_Srv2,DEBUG_PRINT):
         super().__init__(module)
         self.set_pwm_freq(Fs)
         self.PinSrv1=PinNum_Srv1
         self.PinSrv2=PinNum_Srv2
         self.Limitter_MAX=4095
         self.Limitter_MIN=0
+        self.DP=DEBUG_PRINT
+    
+    def debugprint(self,data):
+        if self.DP:
+            print(data)
     
     def Limitter(self,val):
         return max(min(val,self.Limitter_MAX),self.Limitter_MIN)

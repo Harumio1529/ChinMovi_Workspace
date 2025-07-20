@@ -1,12 +1,18 @@
 import cv2
 import numpy as np
 
+
 class camera():
-    def __init__(self):
+    def __init__(self,DEBUG_PRINT):
         self.LOW_COLOR1 = np.array([0, 50, 50]) # 各最小値を指定
         self.HIGH_COLOR1 = np.array([6, 255, 255]) # 各最大値を指定
         self.LOW_COLOR2 = np.array([174, 50, 50])
         self.HIGH_COLOR2 = np.array([180, 255, 255])
+        self.DP=DEBUG_PRINT
+    
+    def debugprint(self,data):
+        if self.DP:
+            print(data)
 
     def Clahe(self,img):
 
