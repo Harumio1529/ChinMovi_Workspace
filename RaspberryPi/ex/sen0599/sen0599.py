@@ -6,9 +6,9 @@ import time
 class sen0599():
     def __init__(self):
         baud=115200
-        prty="N"
+        prty=serial.PARITY_NONE
         port='/dev/serial0'
-        self.cmd=0x55
+        self.cmd=bytes([0x55])
         self.buffer=np.empty(4,dtype=np.uint8)
         self.Serial=serial.Serial(port=port,
                                   baudrate=baud,
@@ -21,12 +21,15 @@ class sen0599():
         time.sleep(0.1)
         if (self.Serial.in_waiting>0):
             time.sleep(0.004)
-            if (self.Serial.read(1)==0xff):
+            data=self.Serial.read(1)
+            if data and (data[0]==0xff):
                 self.buffer[0]=0xff
                 for i in range(3):
-                    self.buffer[i+1]=self.Serial.read(1)
+                    data=self.Serial.read(1)
+                    if data:
+                        self.buffer[i+1]=data[0]
                 CS=self.buffer[0]+self.buffer[1]+self.buffer[2]
-                if self.buffer[3]==CS:
+                if self.buffer[3]==(CS & 0xFF):
                     Dist=(self.buffer[1]<<8) + self.buffer[2]
         
         return Dist
@@ -35,4 +38,5 @@ class sen0599():
 if __name__=="__main__":
     sens=sen0599()
     while True:
-        print(sens.read_data())
+        a=sens.read_data()
+        print(a)
