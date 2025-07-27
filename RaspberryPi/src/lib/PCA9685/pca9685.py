@@ -97,10 +97,10 @@ class THRUSTER(PCA9685):
         return max(min(val,self.Limitter_MAX),self.Limitter_MIN)
     
     def set_thrust(self,Th1,Th2,Th3,Th4):
-        self.set_pwm(self.PinTh1,0,self.Limitter(Th1))
-        self.set_pwm(self.PinTh2,0,self.Limitter(Th2))
-        self.set_pwm(self.PinTh3,0,self.Limitter(Th3))
-        self.set_pwm(self.PinTh4,0,self.Limitter(Th4))
+        self.set_pwm(self.PinTh1,0,self.Limitter(int(Th1)))
+        self.set_pwm(self.PinTh2,0,self.Limitter(int(Th2)))
+        self.set_pwm(self.PinTh3,0,self.Limitter(int(Th3)))
+        self.set_pwm(self.PinTh4,0,self.Limitter(int(Th4)))
     
     def close(self):
         self.set_pwm(self.PinTh1,0,0)
@@ -127,8 +127,8 @@ class SERVO(PCA9685):
         return max(min(val,self.Limitter_MAX),self.Limitter_MIN)
     
     def set_servo(self,Srv1,Srv2):
-        self.set_pwm(self.PinSrv1,0,self.Limitter(Srv1))
-        self.set_pwm(self.PinSrv2,0,self.Limitter(Srv2))
+        self.set_pwm(self.PinSrv1,0,self.Limitter(int(Srv1)))
+        self.set_pwm(self.PinSrv2,0,self.Limitter(int(Srv2)))
     
     def Caribration(self):
         self.set_servo(2048,2048)

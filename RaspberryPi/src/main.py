@@ -12,16 +12,21 @@ from lib.CustomQueue.customqueue import CustomQueue_withThred
 from lib.Camera.camera import camera
 from lib.System import SystemCheck
 
+# コントローラクラス
+from controller import Controller
+Con=Controller()
+
 SystemCheck.wifi_off()
+
 
 
 ### デバッグモード ###
 DEBUG_MODE=False
-DEBUG_PRINT=False
+DEBUG_PRINT=True
 #モジュール使用不使用選択
-THRUST_ENABLE=False
-SERVO_ENABLE=False
-CHUSYAKI_ENABLE=False
+THRUST_ENABLE=True
+SERVO_ENABLE=True
+CHUSYAKI_ENABLE=True
 CAMERA_ENABLE=False
 
 
@@ -31,8 +36,10 @@ def debugprint(data):
         print(data)
 
 # Queueデータの箱を準備する
-SensorData=queue.Queue()
+SensorData=CustomQueue_withThred(init_item=([[0]*3,[0]*3,[0]*3]),maxsize=10)
 PropoData=CustomQueue_withThred(init_item=([0]*10),maxsize=10)
+InputThrust=CustomQueue_withThred(init_item=([0]*4),maxsize=10)
+PIDGain=CustomQueue_withThred(init_item=([0]*9),maxsize=10)
 STSOCKET=CustomQueue_withThred(init_item="PREPARING",maxsize=10)
 STIMU=CustomQueue_withThred(init_item="PREPARING",maxsize=10)
 STTHRUST=CustomQueue_withThred(init_item="PREPARING",maxsize=10)
@@ -58,8 +65,10 @@ def data_selector(data):
 def data_separater(data):
     # 前から22個はプロポのデータが入ってくる
     PropoData.put(data_selector(data[:22]))
+    # そのあと9個はPIDゲインが入ってくる
+    PIDGain.put(data[22:31])
     # それより後ろはステータスのデータ
-    StatusData=SA.Decoder(data[22:])
+    StatusData=SA.Decoder(data[31:])
     if StatusData[0]=="WORKING":
         STSOCKET.put(StatusData[0])
     if StatusData[1]=="WORKING":
@@ -97,14 +106,14 @@ def Com_Thred_main(ComAgent: socket.socket):
 
     # print(EncodeStatus)
     # センサデータをぶち込む
-    if STIMU.get_emptychck()!="WORKING":
-        SendData=[0.0,0.0,0.0,
-                        0.0,0.0,0.0,
-                        0.0,0.0,0.0,
-                        *EncodeStatus]
+    if STIMU.get_emptychck()!="WORKING" and STTHRUST.get_emptychck()!="WORKING":
+        SendData=[0.0,0.0,0.0,      #センサーデータ
+                  0.0,0.0,0.0,
+                  0.0,0.0,0.0,
+                  0.0,0.0,0.0,0.0, #スラスタ指示値
+                  *EncodeStatus]
     else :
-        SendData=[*SensorData.get_emptychck(),*EncodeStatus]
-        # print(SendData)
+        SendData=[*SensorData.get_emptychck(),*InputThrust.get_emptychck(),*EncodeStatus]
         
     
     # データのバイナリ化
@@ -124,31 +133,27 @@ def Com_Thred_main(ComAgent: socket.socket):
         # print("timeout")
 
 
-### モジュール操作用スレッド ###
-def Module_Thred():
-    COMMON.scheduler(0.01,Module_Thred_main)
-
-# 
-
-# モジュール操作用スレッドmain関数 #
-def Module_Thred_main():
-    data=PropoData.get()[0]
-    input_srv=int(2048+(data*2047))
-    input_th=int(1600+(data*600))
-    SRV.set_servo(input_srv,input_srv)
-    TH.set_thrust(input_th,input_th,input_th,input_th)
-
-### センサーデータ取得用スレッド ###
-def Sensor_Thred():
-    COMMON.scheduler(0.01,Sensor_Thred_main)
-
-# センサデータ取得用スレッドmaih関数 #
-def Sensor_Thred_main():
+# メインスレッドの実行関数 #
+def Module_Thred_main(TH,SRV,CHU1,CHU2):
+    # センサデータ取得
     gyr=IMU.get_gyr()
     acc=IMU.get_acc()
     EST.update_imu(gyr,acc)
     eul=EST.quaternion.to_euler_angles_ZYX()
     SensorData.put([*gyr,*acc,*eul])
+    # 入力値計算
+    InputData=Con.Controller(PropoData.get_emptychck(),
+                    SensorData.get_emptychck(),
+                    PIDGain.get_emptychck(),
+                    STCONTROLLER.get_emptychck())
+    # モジュール工藤
+    TH.set_thrust(InputData[0][0],InputData[0][1],InputData[0][2],InputData[0][3])
+    SRV.set_servo(InputData[1][0],InputData[1][1])
+    CHU1.set_chusyaki(InputData[2][0])
+    CHU2.set_chusyaki(InputData[2][1])
+    # GUI送信用
+    InputThrust.put(InputData[0])
+    
 
 
 ### カメラ処理用スレッド（別コアで駆動） ###
@@ -219,7 +224,7 @@ IMU.set_scale_acc("2G")
 STIMU.put("SETUP")
 # キャリブレーション
 STIMU.put("CALIBRATION")
-STIMU.put(IMU.calibration(1))
+STIMU.put(IMU.calibration(1000))
 # 姿勢角推定
 EST=MadgwickAHRS(sampleperiod=0.01,beta=1.0)
 STIMU.put("READY")
@@ -231,7 +236,7 @@ if THRUST_ENABLE:
     # キャリブレーション
     STTHRUST.put("CALIBRATION")
     STTHRUST.put(TH.Calibration())
-    TH.set_thrust(1600,1600,1600,1600)
+    TH.set_thrust(1605,1605,1605,1605)
     time.sleep(1)
 STTHRUST.put("READY")
 debugprint("THRUSTER is READY !")
@@ -275,12 +280,10 @@ STCAMERA.put("READY")
 
 
 
-# threading.Thread(target=Module_Thred,daemon=True).start()
-threading.Thread(target=Sensor_Thred,daemon=True).start()
 
 try:
-    while True:
-        pass
+    # 100Hzで実行
+    COMMON.scheduler(0.01,lambda:Module_Thred_main(TH,SRV,CHU1,CHU2))
 except KeyboardInterrupt:
     TH.close()
     SRV.close()
