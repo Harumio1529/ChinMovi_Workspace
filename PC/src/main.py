@@ -3,11 +3,12 @@ import os
 
 # ライブラリインポート
 import socket,time,pickle,math
-from multiprocessing import Process,Array,Value,Lock
+import threading
 
 # 自作ライブラリ
 from lib.propo.Propo import ps4
 import gui
+from lib.CustomQueue.customqueue import CustomQueue_withThred
 
 
 
@@ -24,57 +25,62 @@ DEBUG_MODE=False
 
 
 # データコンテナ
-acc=Array("d",3)
-gyr=Array("d",3)
-eul=Array("d",3)
-STSOCKET=Value("i",0)
-STIMU=Value("i",0)
-STTHRUST=Value("i",0)
-STSERVO=Value("i",0)
-STCHU=Value("i",0)
-STCAMERA=Value("i",0)
-STCONTROLLER=Value("i",0)
+acc=CustomQueue_withThred(init_item=([0]*3),maxsize=10)
+gyr=CustomQueue_withThred(init_item=([0]*3),maxsize=10)
+eul=CustomQueue_withThred(init_item=([0]*3),maxsize=10)
+InputThrsut=CustomQueue_withThred(init_item=([0]*4),maxsize=10)
+STSOCKET=CustomQueue_withThred(init_item="",maxsize=10)
+STIMU=CustomQueue_withThred(init_item="",maxsize=10)
+STTHRUST=CustomQueue_withThred(init_item="",maxsize=10)
+STSERVO=CustomQueue_withThred(init_item="",maxsize=10)
+STCHU=CustomQueue_withThred(init_item="",maxsize=10)
+STCAMERA=CustomQueue_withThred(init_item="",maxsize=10)
+STCONTROLLER=CustomQueue_withThred(init_item="",maxsize=10)
 
 #コントローラー初期化
 stknum=6
 btnnum=16
 propo=ps4(stknum,btnnum)
-PropoData=Array("d",(stknum+btnnum))
-
-def data_input(container,data,lock):
-    with lock:
-        for i in range(data):
-            container[i]=data[i]
+PropoData=CustomQueue_withThred(init_item=[0]*(stknum+btnnum),maxsize=10)
 
 
-def data_separeter(data,acc,gyr,eul,STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCONTROLLER):
-        data_input(acc,data[0:3],Lock)
-        data_input(gyr,data[3:6],Lock)
-        data_input(eul,data[6:9],Lock)
-        with Lock:
-            STSOCKET.value=data[9]
-            STIMU.value=data[10]
-            STTHRUST.value=data[11]
-            STSERVO.value=data[12]
-            STCHU.value=data[13]
-            STCAMERA.value=data[14]
-            STCONTROLLER.value-data[15]
+def data_separeter(data):
+        # SensorData[0~8] 9
+        gyr.put(data[0:3])
+        acc.put(data[3:6])
+        eul.put(data[6:9])
+        # ThsrutinputData[9~12]4
+        InputThrsut.put(data[9:13])
+        # Statusdata[13~fin]
+        StatusData=SA.Decoder(data[13:])
+        STSOCKET.put(StatusData[0])
+        STIMU.put(StatusData[1])
+        STTHRUST.put(StatusData[2])
+        STSERVO.put(StatusData[3])
+        STCHU.put(StatusData[4])
+        STCAMERA.put(StatusData[5])
+        STCONTROLLER.put(StatusData[6])
 
-def status_controler(STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCONTROLLER):
-    with Lock:
+def status_controler():
     # ステータスを監視して、全部ReadyならWorkingに遷移してもらう
-        if STIMU.value=="READY" and STTHRUST.value=="READY" and STSERVO.value=="READY" and STCHU.value=="READY" and STCAMERA.value=="READY":
-            STIMU.value="WORKING"
-            STTHRUST.value="WORKING"
-            STSERVO.value="WORKING"
-            STCHU.value="WORKING"
-            STCAMERA.value="SERCH_MODE"
-            STCONTROLLER.value="MANUAL_CONTROL"
-        # ステータスのエンコード
-        return SA.Encoder([STSOCKET.value,STIMU.value,STTHRUST.value,STSERVO.value,STCHU.value,STCAMERA.value,STCONTROLLER.value])
+    if STIMU.get_emptychck()=="READY" and STTHRUST.get_emptychck()=="READY" and STSERVO.get_emptychck()=="READY" and STCHU.get_emptychck()=="READY" and STCAMERA.get_emptychck()=="READY":
+        STIMU.put("WORKING")
+        STTHRUST.put("WORKING")
+        STSERVO.put("WORKING")
+        STCHU.put("WORKING")
+        STCAMERA.put("VIDEO_MODE")
+        STCONTROLLER.put("MANUAL_CONTROL")
+    # ステータスがすべてworkingの場合にGUIからの変更を受け付ける
+    if STIMU.get_emptychck()=="WORKING" and STTHRUST.get_emptychck()=="WORKING" and STSERVO.get_emptychck()=="WORKING" and STCHU.get_emptychck()=="WORKING":
+        SelectedCameraMode,SelectedControlMode=gui.GetControlModeDatafromGUI()
+        STCAMERA.put(SelectedCameraMode)
+        STCONTROLLER.put(SelectedControlMode)
+
+    # ステータスのエンコード
+    return SA.Encoder([STSOCKET.get_emptychck(),STIMU.get_emptychck(),STTHRUST.get_emptychck(),STSERVO.get_emptychck(),STCHU.get_emptychck(),STCAMERA.get_emptychck(),STCONTROLLER.get_emptychck()])
 
     
-def Com_Process(acc,gyr,eul,STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCONTROLLER):
+def Com_Thred():
     # 通信チェック
     # デバッグモードなら通信チェックなし
     if DEBUG_MODE:
@@ -87,44 +93,36 @@ def Com_Process(acc,gyr,eul,STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCON
     ComAgent=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
     ComAgent.bind((PC_IP,COMMON.PCPort))
     ComAgent.settimeout(1)
-    COMMON.scheduler(0.01,lambda:Com_Process_main(ComAgent,RasPi_IP,acc,gyr,eul,STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCONTROLLER))
+    COMMON.scheduler(0.01,lambda:Com_Thred_main(ComAgent,RasPi_IP))
 
 
-def Com_Process_main(ComAgent,RasPi_IP,acc,gyr,eul,STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCONTROLLER):
+def Com_Thred_main(ComAgent,RasPi_IP):
     try:
         # データ受信
         data,addr=ComAgent.recvfrom(1024)
         # 受信データ分割
-        data_separeter(pickle.loads(data),acc,gyr,eul,STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCONTROLLER)
+        data_separeter(pickle.loads(data))
         # ステータス監視
-        EncodeStatus=status_controler(STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCONTROLLER)
+        EncodeStatus=status_controler()
         # プロポデータ取得
         PropoData.put(propo.getPropoData())
         # 送信データ作成
-        SendData=[*PropoData.peek(),*EncodeStatus]
+        SendData=[*PropoData.peek(),*gui.GetPIDGainfromGUI(),*EncodeStatus]
         ComAgent.sendto(pickle.dumps(SendData),(RasPi_IP,COMMON.RasPiPort))
-        # print(acc.get_emptychck())
-        # print(pickle.loads(data))
-        # print([STSOCKET.peek(),STIMU.peek(),STTHRUST.peek(),STSERVO.peek(),STCHU.peek(),STCAMERA.peek(),STCONTROLLER.peek()])
     
     except socket.timeout:
-        print("timeout")
+        # print("timeout")
         pass
 
 
 
-def function(lock):
-    with lock:
-        return list(acc)
+def function():
+    return [STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCONTROLLER],[acc.get_emptychck(),gyr.get_emptychck(),eul.get_emptychck()],PropoData.get_emptychck(),InputThrsut.get_emptychck()
+
 
 
 if __name__=="__main__":
-    CP=Process(target=Com_Process,
-               args=(
-                   acc,gyr,eul,
-                   STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCONTROLLER))
-    CP.daemon=True
-    CP.start()
+    threading.Thread(target=Com_Thred,daemon=True).start()
     gui.gui_start(function)
     try:
         while True:

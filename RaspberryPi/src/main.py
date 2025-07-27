@@ -53,7 +53,7 @@ STCONTROLLER=CustomQueue_withThred(init_item="PREPARING",maxsize=10)
 def Com_Thred(ComAgent: socket.socket):
     COMMON.scheduler(0.01,lambda: Com_Thred_main(ComAgent))
 
-# プロポのデータを選別する。
+# プロポのデータを選別する。22→10
 def data_selector(data):
     # 使用データは設計書参照
     return [data[0],data[1],
