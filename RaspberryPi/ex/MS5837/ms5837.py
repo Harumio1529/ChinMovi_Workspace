@@ -227,5 +227,7 @@ if __name__=="__main__":
         depthSensor.read(OSR_256)
         temp = depthSensor.temperature()
         depth = depthSensor.depth()
+        alt=depthSensor.altitude()
+        print(temp)
 
 
