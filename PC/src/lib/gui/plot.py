@@ -1,10 +1,13 @@
 import pyqtgraph as pg
-import os
+import os,sys
 
 from PyQt6.QtWidgets import QMainWindow,QApplication
 from PyQt6 import uic
 from PyQt6.QtCore import QTimer
 
+# 通信用顧問
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),"../../../..")))
+import COMMON
 
 import math   
 
@@ -38,6 +41,20 @@ class mainwindow(QMainWindow):
         self.EULPlotEnable=self.PlotSelectorButton_EUL.toggled.connect(self.PlotSelectorisChanged)
         self.PlotDataSelector=0
 
+        # PID初期値(COMMONファイルの中で設定)
+        self.KpRoll.setValue(COMMON.KpRoll)
+        self.KpPitch.setValue(COMMON.KpPitch)
+        self.KpYaw.setValue(COMMON.KpYaw)
+
+        self.KiRoll.setValue(COMMON.KiRoll)
+        self.KiPitch.setValue(COMMON.KiPitch)
+        self.KiYaw.setValue(COMMON.KiYaw)
+
+        self.KdRoll.setValue(COMMON.KdRoll)
+        self.KdPitch.setValue(COMMON.KdPitch)
+        self.KdYaw.setValue(COMMON.KdYaw)
+
+
 
         
         self.ydash=0
@@ -63,6 +80,7 @@ class mainwindow(QMainWindow):
 
     
     def SetPlotData(self,plotdata):
+        # プロッタ
         self.timedata.append(self.time)
         self.data1.append(plotdata[self.PlotDataSelector][0])
         self.data2.append(plotdata[self.PlotDataSelector][1])
@@ -70,6 +88,10 @@ class mainwindow(QMainWindow):
         self.plot1_data1.setData(self.timedata[-500:],self.data1[-500:])
         self.plot1_data2.setData(self.timedata[-500:],self.data2[-500:])
         self.plot1_data3.setData(self.timedata[-500:],self.data3[-500:])
+        # LCD表示
+        self.LCDDist.display(plotdata[3])
+        self.LCDDepth.display(plotdata[4])
+        
     
     def GetStatusColor(self,Status):
         if Status=="WORKING":
@@ -127,28 +149,30 @@ class mainwindow(QMainWindow):
         return 1600
 
 
-    def PlotThrustInputData(self,Input):
-        self.Th1Input_parcent_CCW.setValue(self.CheckThrustDirection_CCW(Input[0]))
-        self.Th1Input_parcent_CW.setValue(self.CheckThrustDirection_CW(Input[0]))
+    def PlotInputData(self,InputThrust,InputServo):
+        self.Th1Input_parcent_CCW.setValue(self.CheckThrustDirection_CCW(InputThrust[0]))
+        self.Th1Input_parcent_CW.setValue(self.CheckThrustDirection_CW(InputThrust[0]))
        
-        self.Th2Input_parcent_CCW.setValue(self.CheckThrustDirection_CCW(Input[1]))
-        self.Th2Input_parcent_CW.setValue(self.CheckThrustDirection_CW(Input[1]))
+        self.Th2Input_parcent_CCW.setValue(self.CheckThrustDirection_CCW(InputThrust[1]))
+        self.Th2Input_parcent_CW.setValue(self.CheckThrustDirection_CW(InputThrust[1]))
 
-        self.Th3Input_parcent_CCW.setValue(self.CheckThrustDirection_CCW(Input[2]))
-        self.Th3Input_parcent_CW.setValue(self.CheckThrustDirection_CW(Input[2]))
+        self.Th3Input_parcent_CCW.setValue(self.CheckThrustDirection_CCW(InputThrust[2]))
+        self.Th3Input_parcent_CW.setValue(self.CheckThrustDirection_CW(InputThrust[2]))
 
-        self.Th4Input_parcent_CCW.setValue(self.CheckThrustDirection_CCW(Input[3]))
-        self.Th4Input_parcent_CW.setValue(self.CheckThrustDirection_CW(Input[3]))
+        self.Th4Input_parcent_CCW.setValue(self.CheckThrustDirection_CCW(InputThrust[3]))
+        self.Th4Input_parcent_CW.setValue(self.CheckThrustDirection_CW(InputThrust[3]))
+
+        self.LCDServo1.display(InputServo[0])
+        self.LCDServo2.display(InputServo[1])
  
 
 
 
     def update(self):
-        StatusData,SensData,PropoData,InputData=self.function()
+        StatusData,SensData,PropoData,InputThrustData,InputServo=self.function()
         self.SetPlotData(SensData)
         self.SetStatusData(StatusData)
-        self.PlotThrustInputData(InputData)
-        print(InputData)
+        self.PlotInputData(InputThrustData,InputServo)
 
         
 

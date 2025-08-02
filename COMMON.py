@@ -5,6 +5,17 @@ TestPort=5000
 RasPiPort=5001
 PCPort=5002
 
+KpRoll=1.0
+KiRoll=2.0
+KdRoll=3.0
+KpPitch=4.0
+KiPitch=5.0
+KdPitch=6.0
+KpYaw=7.0
+KiYaw=8.0
+KdYaw=9.0
+
+
 def CheckIPAddress(module):
     if module=="PC":
         raspi_ip=socket.gethostbyname("raspberrypi.local")
@@ -115,6 +126,7 @@ class StatusAnalyzer:
             num+=1
         
         return status_str
+
         
 
 

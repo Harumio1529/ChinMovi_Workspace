@@ -28,7 +28,10 @@ DEBUG_MODE=False
 acc=CustomQueue_withThred(init_item=([0]*3),maxsize=10)
 gyr=CustomQueue_withThred(init_item=([0]*3),maxsize=10)
 eul=CustomQueue_withThred(init_item=([0]*3),maxsize=10)
+dist=CustomQueue_withThred(init_item=0,maxsize=10)
+dep=CustomQueue_withThred(init_item=0,maxsize=10)
 InputThrsut=CustomQueue_withThred(init_item=([0]*4),maxsize=10)
+InputServo=CustomQueue_withThred(init_item=([0]*2),maxsize=10)
 STSOCKET=CustomQueue_withThred(init_item="",maxsize=10)
 STIMU=CustomQueue_withThred(init_item="",maxsize=10)
 STTHRUST=CustomQueue_withThred(init_item="",maxsize=10)
@@ -45,14 +48,20 @@ PropoData=CustomQueue_withThred(init_item=[0]*(stknum+btnnum),maxsize=10)
 
 
 def data_separeter(data):
-        # SensorData[0~8] 9
+        # IMUData[0~8] 9
         gyr.put(data[0:3])
         acc.put(data[3:6])
         eul.put(data[6:9])
-        # ThsrutinputData[9~12]4
-        InputThrsut.put(data[9:13])
-        # Statusdata[13~fin]
-        StatusData=SA.Decoder(data[13:])
+        # SSData[9] 1
+        dist.put(data[9])
+        # DepthData[10] 1
+        dep.put(data[10])
+        # ThsrutinputData[11~14]4
+        InputThrsut.put(data[11:15])
+        # ServoinputData[15~16] 2
+        InputServo.put(data[15:17])
+        # Statusdata[17~fin]
+        StatusData=SA.Decoder(data[17:])
         STSOCKET.put(StatusData[0])
         STIMU.put(StatusData[1])
         STTHRUST.put(StatusData[2])
@@ -117,7 +126,7 @@ def Com_Thred_main(ComAgent,RasPi_IP):
 
 
 def function():
-    return [STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCONTROLLER],[acc.get_emptychck(),gyr.get_emptychck(),eul.get_emptychck()],PropoData.get_emptychck(),InputThrsut.get_emptychck()
+    return [STSOCKET,STIMU,STTHRUST,STSERVO,STCHU,STCAMERA,STCONTROLLER],[acc.get_emptychck(),gyr.get_emptychck(),eul.get_emptychck(),dist.get_emptychck(),dep.get_emptychck()],PropoData.get_emptychck(),InputThrsut.get_emptychck(),InputServo.get_emptychck()
 
 
 

@@ -11,6 +11,8 @@ from lib.tb6612.tb6612 import TB6612
 from lib.CustomQueue.customqueue import CustomQueue_withThred
 from lib.Camera.camera import camera
 from lib.System import SystemCheck
+from lib.MS5837 import ms5837
+from lib.sen0599 import sen0599
 
 # コントローラクラス
 from controller import Controller
@@ -36,9 +38,10 @@ def debugprint(data):
         print(data)
 
 # Queueデータの箱を準備する
-SensorData=CustomQueue_withThred(init_item=([[0]*3,[0]*3,[0]*3]),maxsize=10)
+SensorData=CustomQueue_withThred(init_item=([[0]*3,[0]*3,[0]*3,[0],[0]]),maxsize=10)
 PropoData=CustomQueue_withThred(init_item=([0]*10),maxsize=10)
 InputThrust=CustomQueue_withThred(init_item=([0]*4),maxsize=10)
+InputServo=CustomQueue_withThred(init_item=([0]*2),maxsize=10)
 PIDGain=CustomQueue_withThred(init_item=([0]*9),maxsize=10)
 STSOCKET=CustomQueue_withThred(init_item="PREPARING",maxsize=10)
 STIMU=CustomQueue_withThred(init_item="PREPARING",maxsize=10)
@@ -107,13 +110,15 @@ def Com_Thred_main(ComAgent: socket.socket):
     # print(EncodeStatus)
     # センサデータをぶち込む
     if STIMU.get_emptychck()!="WORKING" and STTHRUST.get_emptychck()!="WORKING":
-        SendData=[0.0,0.0,0.0,      #センサーデータ
-                  0.0,0.0,0.0,
-                  0.0,0.0,0.0,
+        SendData=[0.0,0.0,0.0,      #加速度
+                  0.0,0.0,0.0,      #ジャイロ
+                  0.0,0.0,0.0,      #オイラー各
+                  0.0,              #超音波センサ
+                  0.0,              #深度センサ
                   0.0,0.0,0.0,0.0, #スラスタ指示値
                   *EncodeStatus]
     else :
-        SendData=[*SensorData.get_emptychck(),*InputThrust.get_emptychck(),*EncodeStatus]
+        SendData=[*SensorData.get_emptychck(),*InputThrust.get_emptychck(),*InputServo.get_emptychck(),*EncodeStatus]
         
     
     # データのバイナリ化
@@ -140,7 +145,9 @@ def Module_Thred_main(TH,SRV,CHU1,CHU2):
     acc=IMU.get_acc()
     EST.update_imu(gyr,acc)
     eul=EST.quaternion.to_euler_angles_ZYX()
-    SensorData.put([*gyr,*acc,*eul])
+    dist=SS.read_data()
+    dep=DS.depth()
+    SensorData.put([gyr,acc,eul,dist,dep])
     # 入力値計算
     InputData=Con.Controller(PropoData.get_emptychck(),
                     SensorData.get_emptychck(),
@@ -153,6 +160,7 @@ def Module_Thred_main(TH,SRV,CHU1,CHU2):
     CHU2.set_chusyaki(InputData[2][1])
     # GUI送信用
     InputThrust.put(InputData[0])
+    InputServo.put(InputData[1])
     
 
 
@@ -227,6 +235,16 @@ STIMU.put("CALIBRATION")
 STIMU.put(IMU.calibration(1000))
 # 姿勢角推定
 EST=MadgwickAHRS(sampleperiod=0.01,beta=1.0)
+# 深度センサ
+DS = ms5837.MS5837_30BA(i2c)
+DS.init()
+DS.read(ms5837.OSR_256)
+DS.setFluidDensity(ms5837.DENSITY_FRESHWATER)
+debugprint("Depth OK!")
+#超音波センサ
+SS=sen0599.sen0599() 
+debugprint("SS OK!")
+
 STIMU.put("READY")
 debugprint("IMU and Estimation is READY !")
 
