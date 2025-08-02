@@ -115,7 +115,8 @@ def Com_Thred_main(ComAgent: socket.socket):
                   0.0,0.0,0.0,      #オイラー各
                   0.0,              #超音波センサ
                   0.0,              #深度センサ
-                  0.0,0.0,0.0,0.0, #スラスタ指示値
+                  0.0,0.0,0.0,0.0,  #スラスタ指示値
+                  0.0,0.0,          #サーボ指示値
                   *EncodeStatus]
     else :
         SendData=[*SensorData.get_emptychck(),*InputThrust.get_emptychck(),*InputServo.get_emptychck(),*EncodeStatus]
