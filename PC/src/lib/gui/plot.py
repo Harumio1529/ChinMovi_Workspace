@@ -170,6 +170,7 @@ class mainwindow(QMainWindow):
 
     def update(self):
         StatusData,SensData,PropoData,InputThrustData,InputServo=self.function()
+        # print(SensData)
         self.SetPlotData(SensData)
         self.SetStatusData(StatusData)
         self.PlotInputData(InputThrustData,InputServo)

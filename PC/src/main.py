@@ -4,6 +4,7 @@ import os
 # ライブラリインポート
 import socket,time,pickle,math
 import threading
+from datetime import datetime
 
 # 自作ライブラリ
 from lib.propo.Propo import ps4
@@ -19,6 +20,14 @@ SA=COMMON.StatusAnalyzer()
 
 # デバッグモード
 DEBUG_MODE=False
+
+# ログヘッダ用
+LogHead=True
+
+# ファイル名前
+logpath='C:\work\ChinMovi_Workspace\PC\log'
+now=datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+logfilename=logpath+"\LogData_"+now+".csv"
 
 
 
@@ -46,29 +55,54 @@ btnnum=16
 propo=ps4(stknum,btnnum)
 PropoData=CustomQueue_withThred(init_item=[0]*(stknum+btnnum),maxsize=10)
 
+def InputNormarize(input):
+    return (input-1600)/600
+
+def GenLogData(data):
+    AccData=str(data[0])+","+str(data[1])+","+str(data[2])
+    GyrData=str(data[3])+","+str(data[4])+","+str(data[5])
+    EulData=str(data[6])+","+str(data[7])+","+str(data[8])
+    DistData=str(data[9])
+    DepData=str(data[10])
+    InputData=str(InputNormarize(data[11]))+","+str(InputNormarize(data[12]))+","+str(InputNormarize(data[13]))+","+str(InputNormarize(data[14]))
+    PD=PropoData.get_emptychck()
+    surge=-0.5*(PD[4]+1)+0.5*(PD[5]+1)
+    TargetData=str(-1*PD[1])+","+str(PD[2])+","+str(-1*PD[3])+","+str(surge)
+
+    return AccData+","+GyrData+","+EulData+","+DistData+","+DepData+","+InputData+","+TargetData
+
 
 def data_separeter(data):
-        # IMUData[0~8] 9
-        gyr.put(data[0:3])
-        acc.put(data[3:6])
-        eul.put(data[6:9])
-        # SSData[9] 1
-        dist.put(data[9])
-        # DepthData[10] 1
-        dep.put(data[10])
-        # ThsrutinputData[11~14]4
-        InputThrsut.put(data[11:15])
-        # ServoinputData[15~16] 2
-        InputServo.put(data[15:17])
-        # Statusdata[17~fin]
-        StatusData=SA.Decoder(data[17:])
-        STSOCKET.put(StatusData[0])
-        STIMU.put(StatusData[1])
-        STTHRUST.put(StatusData[2])
-        STSERVO.put(StatusData[3])
-        STCHU.put(StatusData[4])
-        STCAMERA.put(StatusData[5])
-        STCONTROLLER.put(StatusData[6])
+    # IMUData[0~8] 9
+    acc.put(data[0:3])
+    gyr.put(data[3:6])
+    eul.put(data[6:9])
+    # SSData[9] 1
+    dist.put(data[9])
+    # DepthData[10] 1
+    dep.put(data[10])
+    # ThsrutinputData[11~14]4
+    InputThrsut.put(data[11:15])
+    # ServoinputData[15~16] 2
+    InputServo.put(data[15:17])
+    # Statusdata[17~fin]
+    StatusData=SA.Decoder(data[17:])
+    STSOCKET.put(StatusData[0])
+    STIMU.put(StatusData[1])
+    STTHRUST.put(StatusData[2])
+    STSERVO.put(StatusData[3])
+    STCHU.put(StatusData[4])
+    STCAMERA.put(StatusData[5])
+    STCONTROLLER.put(StatusData[6])
+
+    
+    start_time = start_time0
+    start_time = time.perf_counter()
+    #logを書く
+    timestamp = str(start_time-start_time0).split('.')
+    timestamp_ = timestamp[0] + '.' + timestamp[1][:3]
+    log_string = f'{timestamp_},' +GenLogData(data)
+    outputFile.write(log_string+"\n")
 
 def status_controler():
     # ステータスを監視して、全部ReadyならWorkingに遷移してもらう
@@ -105,7 +139,11 @@ def Com_Thred():
     COMMON.scheduler(0.01,lambda:Com_Thred_main(ComAgent,RasPi_IP))
 
 
+
+
+
 def Com_Thred_main(ComAgent,RasPi_IP):
+    
     try:
         # データ受信
         data,addr=ComAgent.recvfrom(1024)
@@ -130,14 +168,19 @@ def function():
 
 
 
+
 if __name__=="__main__":
-    threading.Thread(target=Com_Thred,daemon=True).start()
-    gui.gui_start(function)
-    try:
-        while True:
-            pass
-    except KeyboardInterrupt:
-        print("fin")
+    with open(logfilename,"w") as outputFile:
+        outputFile.write("t,ax,ay,az,gx,gy,gz,roll,pitch,heading,dist,depth,u1,u2,u3,u4,Heave,Yawing,Pitching,Surge\n")
+        # ログデータ取得
+        start_time0 = time.perf_counter()
+        threading.Thread(target=Com_Thred,daemon=True).start()
+        gui.gui_start(function)
+        try:
+            while True:
+                pass
+        except KeyboardInterrupt:
+            print("fin")
     
 
 
