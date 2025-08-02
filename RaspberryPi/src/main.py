@@ -2,6 +2,8 @@
 import sys ,os
 import socket,time,pickle,smbus,threading,queue,cv2
 from multiprocessing import Process
+import time
+from datetime import datetime
 
 # 自作ライブラリをimport
 from lib.icm20948.ICM20948 import ICM20948
@@ -22,13 +24,14 @@ SystemCheck.wifi_off()
 
 
 
+
 ### デバッグモード ###
 DEBUG_MODE=False
 DEBUG_PRINT=True
 #モジュール使用不使用選択
 THRUST_ENABLE=True
 SERVO_ENABLE=True
-CHUSYAKI_ENABLE=True
+CHUSYAKI_ENABLE=False
 CAMERA_ENABLE=False
 
 
@@ -38,7 +41,11 @@ def debugprint(data):
         print(data)
 
 # Queueデータの箱を準備する
-SensorData=CustomQueue_withThred(init_item=([[0]*3,[0]*3,[0]*3,[0],[0]]),maxsize=10)
+ACC=CustomQueue_withThred(init_item=[0]*3,maxsize=10)
+GYR=CustomQueue_withThred(init_item=[0]*3,maxsize=10)
+EUL=CustomQueue_withThred(init_item=[0]*3,maxsize=10)
+Dist=CustomQueue_withThred(init_item=0,maxsize=10)
+Dep=CustomQueue_withThred(init_item=0,maxsize=10)
 PropoData=CustomQueue_withThred(init_item=([0]*10),maxsize=10)
 InputThrust=CustomQueue_withThred(init_item=([0]*4),maxsize=10)
 InputServo=CustomQueue_withThred(init_item=([0]*2),maxsize=10)
@@ -57,11 +64,11 @@ def Com_Thred(ComAgent: socket.socket):
     COMMON.scheduler(0.01,lambda: Com_Thred_main(ComAgent))
 
 # プロポのデータを選別する。22→10
-def data_selector(data):
+def data_selector(data):   
     # 使用データは設計書参照
-    return [data[0],data[1],
+    return [data[1],data[2],data[3],
             data[4],data[5],
-            data[15],data[16],
+            data[6],data[7],
             data[17],data[18],data[19],data[20]]
     
 # 通信データをステータスとプロポのデータに分ける
@@ -107,7 +114,6 @@ def Com_Thred_main(ComAgent: socket.socket):
                              STCAMERA.get_emptychck(),
                              STCONTROLLER.get_emptychck()])
 
-    # print(EncodeStatus)
     # センサデータをぶち込む
     if STIMU.get_emptychck()!="WORKING" and STTHRUST.get_emptychck()!="WORKING":
         SendData=[0.0,0.0,0.0,      #加速度
@@ -119,7 +125,16 @@ def Com_Thred_main(ComAgent: socket.socket):
                   0.0,0.0,          #サーボ指示値
                   *EncodeStatus]
     else :
-        SendData=[*SensorData.get_emptychck(),*InputThrust.get_emptychck(),*InputServo.get_emptychck(),*EncodeStatus]
+        SendData=[*ACC.get_emptychck(),
+                  *GYR.get_emptychck(),
+                  *EUL.get_emptychck(),
+                  Dist.get_emptychck(),
+                  Dep.get_emptychck(),
+                  *InputThrust.get_emptychck(),
+                  *InputServo.get_emptychck(),
+                  *EncodeStatus]
+    # print(SendData)
+    
         
     
     # データのバイナリ化
@@ -144,21 +159,36 @@ def Module_Thred_main(TH,SRV,CHU1,CHU2):
     # センサデータ取得
     gyr=IMU.get_gyr()
     acc=IMU.get_acc()
+    # dist=SS.read_data()
+    dist=0
     EST.update_imu(gyr,acc)
     eul=EST.quaternion.to_euler_angles_ZYX()
-    dist=SS.read_data()
-    dep=DS.depth()
-    SensorData.put([gyr,acc,eul,dist,dep])
+    # dep=DS.depth()
+    dep=0
+    GYR.put(gyr)
+    ACC.put(acc)
+    EUL.put(eul)
+    Dist.put(dist)
+    Dep.put(dep)
+    sens=[acc,gyr,eul,dist,dep]
+    
     # 入力値計算
     InputData=Con.Controller(PropoData.get_emptychck(),
-                    SensorData.get_emptychck(),
+                    sens,
                     PIDGain.get_emptychck(),
                     STCONTROLLER.get_emptychck())
-    # モジュール工藤
-    TH.set_thrust(InputData[0][0],InputData[0][1],InputData[0][2],InputData[0][3])
-    SRV.set_servo(InputData[1][0],InputData[1][1])
-    CHU1.set_chusyaki(InputData[2][0])
-    CHU2.set_chusyaki(InputData[2][1])
+    # モジュール工藤(せやかて駆動)
+    if THRUST_ENABLE:
+        TH.set_thrust(InputData[0][0],InputData[0][1],InputData[0][2],InputData[0][3])
+    if SERVO_ENABLE:
+        SRV.set_servo(InputData[1][0],InputData[1][1])
+    if CHUSYAKI_ENABLE:
+        CHU1.set_chusyaki(InputData[2][0])
+        CHU2.set_chusyaki(InputData[2][1])
+    # print(InputData)
+
+    
+
     # GUI送信用
     InputThrust.put(InputData[0])
     InputServo.put(InputData[1])
@@ -233,7 +263,7 @@ IMU.set_scale_acc("2G")
 STIMU.put("SETUP")
 # キャリブレーション
 STIMU.put("CALIBRATION")
-STIMU.put(IMU.calibration(1000))
+STIMU.put(IMU.calibration(1))
 # 姿勢角推定
 EST=MadgwickAHRS(sampleperiod=0.01,beta=1.0)
 # 深度センサ
@@ -249,20 +279,19 @@ debugprint("SS OK!")
 STIMU.put("READY")
 debugprint("IMU and Estimation is READY !")
 
+ # スラスタモジュール起動
+TH=THRUSTER(i2c,0,1,2,3,DEBUG_PRINT)
 if THRUST_ENABLE:
-    # スラスタモジュール起動
-    TH=THRUSTER(i2c,0,1,2,3,DEBUG_PRINT)
     # キャリブレーション
     STTHRUST.put("CALIBRATION")
     STTHRUST.put(TH.Calibration())
-    TH.set_thrust(1605,1605,1605,1605)
-    time.sleep(1)
+    TH.set_thrust(1650,1650,1650,1650)
 STTHRUST.put("READY")
 debugprint("THRUSTER is READY !")
 
+# サーボモジュール起動
+SRV=SERVO(i2c,4,5,DEBUG_PRINT)
 if SERVO_ENABLE:
-    # サーボモジュール起動
-    SRV=SERVO(i2c,8,9,DEBUG_PRINT)
     # キャリブレーション（と言ってるが動かしてるだけ）
     STSERVO.put("CARIBRATION")
     time.sleep(0.1)
@@ -271,10 +300,10 @@ STSERVO.put("READY")
 time.sleep(0.1)
 debugprint("SERVO is READY !")
 
+# チュウシャキモジュール起動
+CHU1=TB6612(i2c,PCA9685,7,20,21,DEBUG_PRINT,LimitEnable=False)
+CHU2=TB6612(i2c,PCA9685,6,12,16,DEBUG_PRINT,LimitEnable=False)
 if CHUSYAKI_ENABLE:
-    # チュウシャキモジュール起動
-    CHU1=TB6612(i2c,PCA9685,7,20,21,DEBUG_PRINT,LimitEnable=False)
-    CHU2=TB6612(i2c,PCA9685,6,12,16,DEBUG_PRINT,LimitEnable=False)
     # キャリブレーション(と言ってるが動かしてるだけ)
     STCHU.put("CARIBRATION")
     if CHU1.caribration()=="CARIBRATION_OK" and CHU2.caribration()=="CARIBRATION_OK":
@@ -301,8 +330,10 @@ STCAMERA.put("READY")
 
 
 try:
-    # 100Hzで実行
-    COMMON.scheduler(0.01,lambda:Module_Thred_main(TH,SRV,CHU1,CHU2))
+    
+        # 100Hzで実行
+        COMMON.scheduler(0.01,lambda:Module_Thred_main(TH,SRV,CHU1,CHU2))
+
 except KeyboardInterrupt:
     TH.close()
     SRV.close()

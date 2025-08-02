@@ -113,7 +113,7 @@ class Quaternion:
         cosy_cosp = 1 - 2 * (self[2] * self[2] + self[3] * self[3])
         yaw = np.arctan2(siny_cosp, cosy_cosp)
         
-        return roll * r2d, pitch * r2d, yaw * r2d
+        return float(roll * r2d), float(pitch * r2d), float(yaw * r2d)
 
 
     def to_euler123(self):

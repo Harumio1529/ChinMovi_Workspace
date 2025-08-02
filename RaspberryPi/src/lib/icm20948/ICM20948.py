@@ -141,7 +141,7 @@ class ICM20948():
         for i in range(3):
             self.gy_data_raw[i]=(self.change2int16(ans[(2*i)] << 8 | ans[(2*i)+1]))
             self.gy_data[i]=(self.gy_data_raw[i]/self.gy_sf)*d2r
-        return [self.gy_data[0]-self.gyr_offset[0],self.gy_data[1]-self.gyr_offset[1],self.gy_data[2]-self.gyr_offset[2]]
+        return [float(self.gy_data[0]-self.gyr_offset[0]),float(self.gy_data[1]-self.gyr_offset[1]),float(self.gy_data[2]-self.gyr_offset[2])]
     
     def get_acc(self):
         # read 6byte from 0x2D
@@ -150,7 +150,7 @@ class ICM20948():
         for i in range(3):
             self.ac_data_raw[i]=(self.change2int16(ans[2*i] << 8 | ans[(2*i)+1]))
             self.ac_data[i]=self.ac_data_raw[i]/self.ac_sf
-        return [self.ac_data[0]-self.acc_offset[0],self.ac_data[1]-self.acc_offset[1],self.ac_data[2]-self.acc_offset[2]]
+        return [float(self.ac_data[0]-self.acc_offset[0]),float(self.ac_data[1]-self.acc_offset[1]),float(self.ac_data[2]-self.acc_offset[2])]
     
     def get_all(self):
         ans= self.i2c.read_i2c_block_data(imu_addr,0x2D,14)

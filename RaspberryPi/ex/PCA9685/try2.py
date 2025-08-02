@@ -20,9 +20,9 @@ start=time.time()
 try :
     while True:
 
-        pca9685.set_pwm(3,0,4000)
+        pca9685.set_pwm(6,0,2000)
         GPIO.output(21,True)
-        GPIO.output(20,False)
+        GPIO.output(20,True)
         print("move!")
         
 except KeyboardInterrupt:
