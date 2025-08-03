@@ -61,7 +61,7 @@ STCONTROLLER=CustomQueue_withThred(init_item="PREPARING",maxsize=10)
 
 #### 通信スレッド用関数 ####
 def Com_Thred(ComAgent: socket.socket):
-    COMMON.scheduler(0.008,lambda: Com_Thred_main(ComAgent),exectime=True)
+    COMMON.scheduler(0.008,lambda: Com_Thred_main(ComAgent))
 
 # プロポのデータを選別する。22→10
 def data_selector(data):   
@@ -156,16 +156,16 @@ def Com_Thred_main(ComAgent: socket.socket):
 
 # メインスレッドの実行関数 #
 def Module_Thred_main(TH,SRV,CHU1,CHU2):
-    start=time.time()
+    # start=time.time()
     # センサデータ取得
     gyr=IMU.get_gyr()
     acc=IMU.get_acc()
-    # dist=SS.read_data()
-    dist=0
+    dist=SS.read_data()
+    # dist=0
     EST.update_imu(gyr,acc)
     eul=EST.quaternion.to_euler_angles_ZYX()
-    # dep=DS.depth()
-    dep=0
+    dep=DS.depth()
+    # dep=0
     GYR.put(gyr)
     ACC.put(acc)
     EUL.put(eul)
@@ -194,7 +194,7 @@ def Module_Thred_main(TH,SRV,CHU1,CHU2):
     InputThrust.put(InputData[0])
     InputServo.put(InputData[1])
     end=time.time()
-    print(end-start)
+    # print(end-start)
     
 
 
@@ -266,7 +266,7 @@ IMU.set_scale_acc("2G")
 STIMU.put("SETUP")
 # キャリブレーション
 STIMU.put("CALIBRATION")
-STIMU.put(IMU.calibration(1))
+STIMU.put(IMU.calibration(1000))
 # 姿勢角推定
 EST=MadgwickAHRS(sampleperiod=0.01,beta=1.0)
 # 深度センサ
@@ -335,7 +335,7 @@ STCAMERA.put("READY")
 try:
     
     # 100Hzで実行
-    COMMON.scheduler(0.01,lambda:Module_Thred_main(TH,SRV,CHU1,CHU2),exectime=False)
+    COMMON.scheduler(0.01,lambda:Module_Thred_main(TH,SRV,CHU1,CHU2))
 
 except KeyboardInterrupt:
     TH.close()
