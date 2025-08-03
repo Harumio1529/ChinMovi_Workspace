@@ -52,14 +52,21 @@ def Clahe(img):
 
 
 cap = cv2.VideoCapture(0)
+fps    = cap.get(cv2.CAP_PROP_FPS)
+ret, low = cap.read()
+h,w,c=low.shape
+
+fname="test.m4v"
+fmt    = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
+size=(w,h)
+writer = cv2.VideoWriter(fname, fmt, fps, size)
 
 while True:
     ret, low = cap.read()
-    h,w,c=low.shape
-    print(h)
-    print(w)
+    # h,w,c=low.shape
     frame=Clahe(low)
     cv2.imshow('image', frame)
+    writer.write(frame)
     # cv2.imshow('image', low)
 
     key = cv2.waitKey(1)
