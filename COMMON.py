@@ -73,13 +73,31 @@ def CheckIPAddress(module):
 #### 定周期大麻 ####
 # interval -> 実行周期[s]
 # func -> 実行関数
-def scheduler(interval, func):
-    base_time = time.time()
-    next_time = 0
+# def scheduler(interval, func,exectime=False):
+#     base_time = time.time()
+#     next_time = 0
+#     while True:
+#         func()
+#         next_time = ((base_time - time.time()) % interval) or interval
+#         time.sleep(next_time)
+
+def scheduler(interval, func, exectime=False):
+    next_time = time.time()
     while True:
+        start = time.time()
         func()
-        next_time = ((base_time - time.time()) % interval) or interval
-        time.sleep(next_time)
+        end = time.time()
+
+        if exectime:
+            print(f"Execution time: {end - start:.6f} sec")
+
+        next_time += interval
+        sleep_time = next_time - time.time()
+        if sleep_time > 0:
+            time.sleep(sleep_time)
+        else:
+            next_time = time.time()
+
 
         
 

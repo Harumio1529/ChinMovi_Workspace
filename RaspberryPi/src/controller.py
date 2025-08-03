@@ -13,8 +13,8 @@ class Controller():
 
         # モデル同定用
         self.duration=20
-        self.f0=5
-        self.f1=20
+        self.f0=0.1
+        self.f1=2
         self.amp=0.8
         self.iter=0
         self.maxiter=20/0.01
@@ -73,17 +73,24 @@ class Controller():
         print(PIDGain)
         return [[0.0,0.0,0.0,0.0],[0.0,0.0],[0.0,0.0]]
 
-    def FullAuto_Controller(self):
-        import math
-        freq=self.f0+(self.f1-self.f0)*(self.iter/self.maxiter)
-        phase = 2 * math.pi * freq * self.iter
-        y=self.amp*math.sin(phase)
+    def FullAuto_Controller(self,PropoData):
+        # import math
+        # freq=self.f0+(self.f1-self.f0)*(self.iter/self.maxiter)
+        # phase = 2 * math.pi * freq * self.iter
+        # y=self.amp*math.sin(phase)
 
-        Heave=-1*y
-        Yawing=0
-        Pitching=-1*0
-        Zenshin=-0.5*(0+1)
-        Koutai=-0.5*(0+1)
+        # Heave=-1*y
+        # Yawing=0
+        # Pitching=-1*0
+        # Zenshin=-0.5*(0+1)
+        # Koutai=-0.5*(0+1)
+        # Surge=Zenshin-Koutai
+
+        Heave=-1*PropoData[0]
+        Yawing=PropoData[1]
+        Pitching=-1*PropoData[2]
+        Zenshin=-0.5*(PropoData[3]+1)
+        Koutai=-0.5*(PropoData[4]+1)
         Surge=Zenshin-Koutai
 
         # スラスタ
@@ -115,7 +122,7 @@ class Controller():
         elif CNTRLMODE=="ATTITUDE_CONTROL":
             return self.Attitude_PIDController(PropoData,SensData,PIDGain)
         elif CNTRLMODE=="AUTO_CONTROL":
-            return self.FullAuto_Controller()
+            return self.FullAuto_Controller(PropoData)
         else :
             print("use valid controll mode")
             return [[0.0,0.0,0.0,0.0],[0.0,0.0],[0.0,0.0]]

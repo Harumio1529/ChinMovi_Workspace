@@ -61,7 +61,7 @@ STCONTROLLER=CustomQueue_withThred(init_item="PREPARING",maxsize=10)
 
 #### 通信スレッド用関数 ####
 def Com_Thred(ComAgent: socket.socket):
-    COMMON.scheduler(0.01,lambda: Com_Thred_main(ComAgent))
+    COMMON.scheduler(0.008,lambda: Com_Thred_main(ComAgent),exectime=True)
 
 # プロポのデータを選別する。22→10
 def data_selector(data):   
@@ -156,6 +156,7 @@ def Com_Thred_main(ComAgent: socket.socket):
 
 # メインスレッドの実行関数 #
 def Module_Thred_main(TH,SRV,CHU1,CHU2):
+    start=time.time()
     # センサデータ取得
     gyr=IMU.get_gyr()
     acc=IMU.get_acc()
@@ -192,6 +193,8 @@ def Module_Thred_main(TH,SRV,CHU1,CHU2):
     # GUI送信用
     InputThrust.put(InputData[0])
     InputServo.put(InputData[1])
+    end=time.time()
+    print(end-start)
     
 
 
@@ -331,8 +334,8 @@ STCAMERA.put("READY")
 
 try:
     
-        # 100Hzで実行
-        COMMON.scheduler(0.01,lambda:Module_Thred_main(TH,SRV,CHU1,CHU2))
+    # 100Hzで実行
+    COMMON.scheduler(0.01,lambda:Module_Thred_main(TH,SRV,CHU1,CHU2),exectime=False)
 
 except KeyboardInterrupt:
     TH.close()
