@@ -33,6 +33,8 @@ logfilename=logpath+"\LogData_"+now+".csv"
 
 
 
+
+
 # データコンテナ
 acc=CustomQueue_withThred(init_item=([0]*3),maxsize=10)
 gyr=CustomQueue_withThred(init_item=([0]*3),maxsize=10)
@@ -55,6 +57,11 @@ btnnum=16
 propo=ps4(stknum,btnnum)
 PropoData=CustomQueue_withThred(init_item=[0]*(stknum+btnnum),maxsize=10)
 
+iter=0
+data=[0]*(stknum+btnnum)
+y_=0
+f=0.005
+
 def InputNormarize(input):
     return (input-1600)/600
 
@@ -68,8 +75,9 @@ def GenLogData(data):
     PD=PropoData.get_emptychck()
     surge=-0.5*(PD[4]+1)+0.5*(PD[5]+1)
     TargetData=str(-1*PD[1])+","+str(PD[2])+","+str(-1*PD[3])+","+str(surge)
+    ControlModeData=str(data[23])
 
-    return AccData+","+GyrData+","+EulData+","+DistData+","+DepData+","+InputData+","+TargetData
+    return AccData+","+GyrData+","+EulData+","+DistData+","+DepData+","+InputData+","+TargetData+","+ControlModeData
 
 
 def data_separeter(data):
@@ -98,11 +106,15 @@ def data_separeter(data):
     
     start_time = start_time0
     start_time = time.perf_counter()
-    #logを書く
-    timestamp = str(start_time-start_time0).split('.')
-    timestamp_ = timestamp[0] + '.' + timestamp[1][:3]
-    log_string = f'{timestamp_},' +GenLogData(data)
-    outputFile.write(log_string+"\n")
+    if data[23]>0.5:
+        #logを書く
+        timestamp = str(start_time-start_time0).split('.')
+        timestamp_ = timestamp[0] + '.' + timestamp[1][:3]
+        log_string = f'{timestamp_},' +GenLogData(data)
+        outputFile.write(log_string+"\n")
+
+
+    
 
 def status_controler():
     # ステータスを監視して、全部ReadyならWorkingに遷移してもらう
@@ -138,6 +150,49 @@ def Com_Thred():
     ComAgent.settimeout(1)
     COMMON.scheduler(0.01,lambda:Com_Thred_main(ComAgent,RasPi_IP))
 
+def GenSystemIdentData(f0,f1,maxiter,amp):
+    global iter,data,y_,f
+    freq=f0+(f1-f0)*(iter/maxiter)
+    phase=2*math.pi*freq*iter
+    # phase = iter*f
+    y=amp*math.sin(phase)
+    # if y_<=0 and y>=0:
+    #     f*=1.2
+
+    print(data[1])
+
+    
+    data[0]=0
+    data[1]=y
+    data[2]=0
+    data[3]=0
+    data[4]=0
+    data[5]=0
+    data[6]=0
+    data[7]=0
+    data[8]=0
+    data[9]=0
+    data[10]=0
+    data[11]=0
+    data[12]=0
+    data[13]=0
+    data[14]=0
+    data[15]=0
+    data[16]=0
+    data[17]=0
+    data[18]=0
+    data[19]=0
+    data[20]=0
+    data[21]=0
+
+    if iter<=maxiter:
+        iter+=0.01
+    else :
+        y=0
+    y_=y
+
+    return data
+    
 
 
 
@@ -153,6 +208,8 @@ def Com_Thred_main(ComAgent,RasPi_IP):
         EncodeStatus=status_controler()
         # プロポデータ取得
         PropoData.put(propo.getPropoData())
+        if EncodeStatus[6]==3:
+            PropoData.put(GenSystemIdentData(0.2,5,30,0.8))
         # 送信データ作成
         SendData=[*PropoData.peek(),*gui.GetPIDGainfromGUI(),*EncodeStatus]
         ComAgent.sendto(pickle.dumps(SendData),(RasPi_IP,COMMON.RasPiPort))
@@ -171,7 +228,7 @@ def function():
 
 if __name__=="__main__":
     with open(logfilename,"w") as outputFile:
-        outputFile.write("t,ax,ay,az,gx,gy,gz,roll,pitch,heading,dist,depth,u1,u2,u3,u4,Heave,Yawing,Pitching,Surge\n")
+        outputFile.write("t,ax,ay,az,gx,gy,gz,roll,pitch,heading,dist,depth,u1,u2,u3,u4,Heave,Yawing,Pitching,Surge,ControlMode\n")
         # ログデータ取得
         start_time0 = time.perf_counter()
         threading.Thread(target=Com_Thred,daemon=True).start()
