@@ -22,7 +22,8 @@ Con=Controller()
 
 SystemCheck.wifi_off()
 
-
+Dpflg=0
+_dep=0
 
 
 ### デバッグモード ###
@@ -156,6 +157,7 @@ def Com_Thred_main(ComAgent: socket.socket):
 
 # メインスレッドの実行関数 #
 def Module_Thred_main(TH,SRV,CHU1,CHU2):
+    global _dep,Dpflg
     # start=time.time()
     # センサデータ取得
     gyr=IMU.get_gyr()
@@ -164,7 +166,16 @@ def Module_Thred_main(TH,SRV,CHU1,CHU2):
     # dist=0
     EST.update_imu(gyr,acc)
     eul=EST.quaternion.to_euler_angles_ZYX()
-    dep=DS.depth()
+    DS.read(ms5837.OSR_256)
+    dep=_dep
+    if Dpflg>=1:
+        dep=DS.depth()
+        _dep=dep
+        Dpflg=0
+        print("boke")
+    Dpflg=Dpflg+1
+    print(Dpflg)
+    print(dep)
     # dep=0
     GYR.put(gyr)
     ACC.put(acc)
@@ -172,6 +183,7 @@ def Module_Thred_main(TH,SRV,CHU1,CHU2):
     Dist.put(dist)
     Dep.put(dep)
     sens=[acc,gyr,eul,dist,dep]
+    print(sens)
     
     # 入力値計算
     InputData=Con.Controller(PropoData.get_emptychck(),
@@ -270,7 +282,7 @@ STIMU.put(IMU.calibration(1000))
 # 姿勢角推定
 EST=MadgwickAHRS(sampleperiod=0.01,beta=1.0)
 # 深度センサ
-DS = ms5837.MS5837_30BA(i2c)
+DS = ms5837.MS5837_02BA(i2c)
 DS.init()
 DS.read(ms5837.OSR_256)
 DS.setFluidDensity(ms5837.DENSITY_FRESHWATER)
