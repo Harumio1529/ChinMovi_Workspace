@@ -33,7 +33,7 @@ DEBUG_PRINT=True
 THRUST_ENABLE=True
 SERVO_ENABLE=True
 CHUSYAKI_ENABLE=False
-CAMERA_ENABLE=False
+CAMERA_ENABLE=True
 
 
 #デバッグ用コンソール出力
@@ -162,8 +162,8 @@ def Module_Thred_main(TH,SRV,CHU1,CHU2):
     # センサデータ取得
     gyr=IMU.get_gyr()
     acc=IMU.get_acc()
-    dist=SS.read_data()
-    # dist=0
+    # dist=SS.read_data()
+    dist=0
     EST.update_imu(gyr,acc)
     eul=EST.quaternion.to_euler_angles_ZYX()
     DS.read(ms5837.OSR_256)
@@ -211,17 +211,26 @@ def Module_Thred_main(TH,SRV,CHU1,CHU2):
 
 
 ### カメラ処理用スレッド（別コアで駆動） ###
-def Camera_Process_main():
+def Camera_Process_main(CM):
+    cap = cv2.VideoCapture(0)
+    fps    = cap.get(cv2.CAP_PROP_FPS)
+    ret, low = cap.read()
+    h,w,c=low.shape
+
+    fname="test.m4v"
+    fmt    = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
+    size=(w,h)
+    writer = cv2.VideoWriter(fname, fmt, fps, size)
     while True:
         if STCAMERA=="SERCH_MODE":
             ret, low = cap.read()
             frame=CM.Clahe(low)
+            writer.write(frame)
             
         else :
             ret, frame = cap.read()
-            frame=CM.Clahe(frame)
+            writer.write(frame)
         
-        cv2.imshow('image', frame)
         key = cv2.waitKey(1)
         if key == ord('q'):  # qキーで終了
             break
@@ -288,7 +297,7 @@ DS.read(ms5837.OSR_256)
 DS.setFluidDensity(ms5837.DENSITY_FRESHWATER)
 debugprint("Depth OK!")
 #超音波センサ
-SS=sen0599.sen0599() 
+# SS=sen0599.sen0599() 
 debugprint("SS OK!")
 
 STIMU.put("READY")
@@ -330,11 +339,10 @@ time.sleep(2)
 
 if CAMERA_ENABLE:
     # カメラモジュール起動
-    cap=cv2.VideoCapture(0)
     STCAMERA.put("CAPTURE_OK")
     debugprint("Capture OK!")
     CM=camera(DEBUG_PRINT)
-    Camera_Process=Process(target=Camera_Process_main)
+    Camera_Process=Process(target=Camera_Process_main,args=(CM,))
     Camera_Process.daemon=True
     Camera_Process.start()
     
