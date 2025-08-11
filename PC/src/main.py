@@ -123,7 +123,7 @@ def status_controler():
         STTHRUST.put("WORKING")
         STSERVO.put("WORKING")
         STCHU.put("WORKING")
-        STCAMERA.put("VIDEO_MODE")
+        STCAMERA.put("SERCH_MODE")
         STCONTROLLER.put("MANUAL_CONTROL")
     # ステータスがすべてworkingの場合にGUIからの変更を受け付ける
     if STIMU.get_emptychck()=="WORKING" and STTHRUST.get_emptychck()=="WORKING" and STSERVO.get_emptychck()=="WORKING" and STCHU.get_emptychck()=="WORKING":
@@ -163,9 +163,9 @@ def GenSystemIdentData(f0,f1,maxiter,amp):
 
     
     data[0]=0
-    data[1]=y
+    data[1]=0
     data[2]=0
-    data[3]=0
+    data[3]=y
     data[4]=0
     data[5]=0
     data[6]=0
