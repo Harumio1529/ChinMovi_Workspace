@@ -19,6 +19,11 @@ class Controller():
         self.iter=0
         self.maxiter=20/0.01
 
+        # PIDコントローラ
+        self.ROLL=PID(0.01)
+        self.PITCH=PID(0.01)
+        self.YAW=PID(0.01)
+
     def ManualController(self,PropoData):
         self.iter=0
         # print(PropoData)
@@ -64,13 +69,20 @@ class Controller():
     
     def ReferenceGenerator(Propodata):
         ref_roll=0.0
-        ref_pitch=0.0
+        ref_pitch=-1*Propodata[2]*180
         ref_yaw=0.0
-        return ref_roll,ref_pitch,ref_yaw
-
+        return [ref_roll,ref_pitch,ref_yaw]
+    
 
     def Attitude_PIDController(self,Ref,SensData,PIDGain):
-        print(PIDGain)
+        # ピッチング計算
+        Pitching=self.PITCH.Controller(Ref[1],SensData[2][2],PIDGain[1],PIDGain[4],PIDGain[7])
+        # ヨーイング計算
+        Yawing=self.YAW.Controller(0,0,PIDGain[2],PIDGain[5],PIDGain[8])
+        
+        
+
+        
         return [[0.0,0.0,0.0,0.0],[0.0,0.0],[0.0,0.0]]
 
     def FullAuto_Controller(self,PropoData):
@@ -120,9 +132,31 @@ class Controller():
         if CNTRLMODE=="MANUAL_CONTROL":
             return self.ManualController(PropoData)
         elif CNTRLMODE=="ATTITUDE_CONTROL":
-            return self.Attitude_PIDController(PropoData,SensData,PIDGain)
+            return self.Attitude_PIDController(self.ReferenceGenerator(PropoData),SensData,PIDGain)
         elif CNTRLMODE=="AUTO_CONTROL":
             return self.FullAuto_Controller(PropoData)
         else :
             print("use valid controll mode")
             return [[0.0,0.0,0.0,0.0],[0.0,0.0],[0.0,0.0]]
+
+class PID:
+    def __init__(self,Ts):
+        self.Ts=Ts #[s]で入力
+        self.integ=0.0
+        self.e_old=0.0
+    
+    def Controller(self,Ref,Sens,Kp,Ki,Kd):
+        e_now=Ref-Sens
+        #P項
+        P_out=e_now*Kp
+        #I項
+        I_out=self.integ*Ki
+        
+        #D項
+        diff=(e_now-self.e_old)/self.Ts
+        D_out=diff*Kd
+
+        self.integ+=0.5*(e_now+self.e_old)*self.Ts #台形積分
+        self.e_old=e_now
+
+        return P_out+I_out+D_out+I_out

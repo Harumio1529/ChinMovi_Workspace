@@ -54,7 +54,7 @@ class TB6612:
         time.sleep(2)
         self.stop()
 
-        return "CARIBRATION_OK"
+        return "CALIBRATION_OK"
 
                 
     # Limitがかかった場合はTrue Limit内にいる場合はFalse

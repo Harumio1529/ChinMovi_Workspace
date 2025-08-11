@@ -137,7 +137,7 @@ class SERVO(PCA9685):
         time.sleep(2)
         # self.set_servo(4095,4095)
         time.sleep(2)
-        return "CARIBRATION_OK"
+        return "CALIBRATION_OK"
     
     def close(self):
         self.set_pwm(self.PinSrv1,0,0)
