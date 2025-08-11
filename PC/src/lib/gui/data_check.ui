@@ -1861,7 +1861,7 @@
        <x>10</x>
        <y>50</y>
        <width>191</width>
-       <height>131</height>
+       <height>136</height>
       </rect>
      </property>
      <layout class="QFormLayout" name="_2">
@@ -2073,12 +2073,12 @@
      </property>
      <item>
       <property name="text">
-       <string>VIDEO_MODE</string>
+       <string>SERCH_MODE</string>
       </property>
      </item>
      <item>
       <property name="text">
-       <string>SERCH_MODE</string>
+       <string>VIDEO_MODE</string>
       </property>
      </item>
     </widget>
@@ -2451,7 +2451,7 @@
       <rect>
        <x>10</x>
        <y>30</y>
-       <width>401</width>
+       <width>518</width>
        <height>141</height>
       </rect>
      </property>
