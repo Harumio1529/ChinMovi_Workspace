@@ -22,7 +22,8 @@ Con=Controller()
 
 SystemCheck.wifi_off()
 
-
+Dpflg=0
+_dep=0
 
 
 ### デバッグモード ###
@@ -32,7 +33,7 @@ DEBUG_PRINT=True
 THRUST_ENABLE=True
 SERVO_ENABLE=True
 CHUSYAKI_ENABLE=False
-CAMERA_ENABLE=False
+CAMERA_ENABLE=True
 
 
 #デバッグ用コンソール出力
@@ -156,15 +157,25 @@ def Com_Thred_main(ComAgent: socket.socket):
 
 # メインスレッドの実行関数 #
 def Module_Thred_main(TH,SRV,CHU1,CHU2):
+    global _dep,Dpflg
     # start=time.time()
     # センサデータ取得
     gyr=IMU.get_gyr()
     acc=IMU.get_acc()
-    dist=SS.read_data()
-    # dist=0
+    # dist=SS.read_data()
+    dist=0
     EST.update_imu(gyr,acc)
     eul=EST.quaternion.to_euler_angles_ZYX()
-    dep=DS.depth()
+    DS.read(ms5837.OSR_256)
+    dep=_dep
+    if Dpflg>=1:
+        dep=DS.depth()
+        _dep=dep
+        Dpflg=0
+        print("boke")
+    Dpflg=Dpflg+1
+    print(Dpflg)
+    print(dep)
     # dep=0
     GYR.put(gyr)
     ACC.put(acc)
@@ -172,6 +183,7 @@ def Module_Thred_main(TH,SRV,CHU1,CHU2):
     Dist.put(dist)
     Dep.put(dep)
     sens=[acc,gyr,eul,dist,dep]
+    print(sens)
     
     # 入力値計算
     InputData=Con.Controller(PropoData.get_emptychck(),
@@ -199,17 +211,26 @@ def Module_Thred_main(TH,SRV,CHU1,CHU2):
 
 
 ### カメラ処理用スレッド（別コアで駆動） ###
-def Camera_Process_main():
+def Camera_Process_main(CM):
+    cap = cv2.VideoCapture(0)
+    fps    = cap.get(cv2.CAP_PROP_FPS)
+    ret, low = cap.read()
+    h,w,c=low.shape
+
+    fname="test.m4v"
+    fmt    = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
+    size=(w,h)
+    writer = cv2.VideoWriter(fname, fmt, fps, size)
     while True:
         if STCAMERA=="SERCH_MODE":
             ret, low = cap.read()
             frame=CM.Clahe(low)
+            writer.write(frame)
             
         else :
             ret, frame = cap.read()
-            frame=CM.Clahe(frame)
+            writer.write(frame)
         
-        cv2.imshow('image', frame)
         key = cv2.waitKey(1)
         if key == ord('q'):  # qキーで終了
             break
@@ -270,13 +291,13 @@ STIMU.put(IMU.calibration(1000))
 # 姿勢角推定
 EST=MadgwickAHRS(sampleperiod=0.01,beta=1.0)
 # 深度センサ
-DS = ms5837.MS5837_30BA(i2c)
+DS = ms5837.MS5837_02BA(i2c)
 DS.init()
 DS.read(ms5837.OSR_256)
 DS.setFluidDensity(ms5837.DENSITY_FRESHWATER)
 debugprint("Depth OK!")
 #超音波センサ
-SS=sen0599.sen0599() 
+# SS=sen0599.sen0599() 
 debugprint("SS OK!")
 
 STIMU.put("READY")
@@ -318,11 +339,10 @@ time.sleep(2)
 
 if CAMERA_ENABLE:
     # カメラモジュール起動
-    cap=cv2.VideoCapture(0)
     STCAMERA.put("CAPTURE_OK")
     debugprint("Capture OK!")
     CM=camera(DEBUG_PRINT)
-    Camera_Process=Process(target=Camera_Process_main)
+    Camera_Process=Process(target=Camera_Process_main,args=(CM,))
     Camera_Process.daemon=True
     Camera_Process.start()
     

@@ -131,11 +131,11 @@ class SERVO(PCA9685):
         self.set_pwm(self.PinSrv2,0,self.Limitter(int(Srv2)))
     
     def Caribration(self):
-        self.set_servo(2048,2048)
+        # self.set_servo(2048,2048)
         time.sleep(2)
         self.set_servo(1,1)
         time.sleep(2)
-        self.set_servo(4095,4095)
+        # self.set_servo(4095,4095)
         time.sleep(2)
         return "CARIBRATION_OK"
     

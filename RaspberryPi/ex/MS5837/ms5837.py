@@ -218,7 +218,7 @@ class MS5837_02BA(MS5837):
 
 if __name__=="__main__":
     i2c=smbus.SMBus(1)
-    depthSensor = MS5837_30BA(i2c)
+    depthSensor = MS5837_02BA(i2c)
     depthSensor.init()
     depthSensor.read(OSR_256)
     depthSensor.setFluidDensity(DENSITY_FRESHWATER) # Use predefined saltwater density
@@ -228,6 +228,6 @@ if __name__=="__main__":
         temp = depthSensor.temperature()
         depth = depthSensor.depth()
         alt=depthSensor.altitude()
-        print(temp)
+        print(depth)
 
 
