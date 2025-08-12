@@ -546,3 +546,4 @@ except KeyboardInterrupt:
     gain_memory.unlink()
 
     ray.shutdown
+    SystemCheck.wifi_on()
