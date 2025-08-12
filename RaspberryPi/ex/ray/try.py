@@ -2,22 +2,27 @@ import ray
 import time
 import threading
 import math
+from multiprocessing import shared_memory
+import numpy as np
 
 ray.init()
 
 @ray.remote
 class sens:
-    def __init__(self,state):
+    def __init__(self,state,name):
         self.omega=0
         self.val=0
         self.state=state
         self.task_run=True
+        self.shm=shared_memory.SharedMemory(name=name)
+        self.sens_arr=np.ndarray((5,),dtype=np.float32,buffer=self.shm.buf)
         threading.Thread(target=self.sens_task,daemon=True).start()
 
     def sens_task(self):
         while self.task_run:
             self.omega+=0.01
             self.val=math.sin(self.omega)
+            self.sens_arr[:]=np.random.rand(5).astype(np.float32)
             if self.omega>=15:
                 self.state.set_status.remote("OKOK")
             time.sleep(0.01)
@@ -32,10 +37,12 @@ class sens:
 
 @ray.remote
 class view:
-    def __init__(self,sens,state):
+    def __init__(self,sens,state,name):
         self.sens=sens
         self.state=state
         self.task_run=True
+        self.shm=shared_memory.SharedMemory(name=name)
+        self.sens_arr=np.ndarray((5,),dtype=np.float32,buffer=self.shm.buf)
         threading.Thread(target=self.view_task,daemon=True).start()
 
     
@@ -46,7 +53,7 @@ class view:
             self.state.set_time.remote(out)
             if out>=10:
                 self.state.set_status.remote("OK")
-            # print(out)
+            print(self.sens_arr)
             time.sleep(0.1)
     
     def stop_task(self):
@@ -63,8 +70,9 @@ class status:
     def status_view(self):
         while self.task_run:
             if self.st=="OK":
-                print(self.out)
-            print(self.st)
+                o=self.out
+                # print(self.out)
+            # print(self.st)
             time.sleep(1)
     
     def set_time(self,time):
@@ -76,9 +84,12 @@ class status:
     def stop_task(self):
         self.task_run=False
 
+shm = shared_memory.SharedMemory(create=True, size=np.zeros(5, dtype=np.float32).nbytes)
+arr = np.ndarray((5,), dtype=np.float32, buffer=shm.buf)
+
 state=status.remote()
-sensor=sens.remote(state)
-output=view.remote(sensor,state)
+sensor=sens.remote(state,shm.name)
+output=view.remote(sensor,state,shm.name)
 
 try:
     while True:
@@ -87,4 +98,7 @@ except KeyboardInterrupt:
     ray.get(sensor.stop_task.remote())
     ray.get(output.stop_task.remote())
     ray.get(state.stop_task.remote())
+
+    shm.close()
+    shm.unlink()
     ray.shutdown

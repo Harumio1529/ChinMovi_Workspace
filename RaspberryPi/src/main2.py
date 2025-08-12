@@ -1,9 +1,10 @@
 # 標準ライブラリをimport
 import sys ,os
 import socket,time,pickle,smbus,threading,queue,cv2,ray
-from multiprocessing import Process
+from multiprocessing import shared_memory
 import time
 from datetime import datetime
+import numpy as np
 
 # 自作ライブラリをimport
 from lib.icm20948.ICM20948 import ICM20948
@@ -16,10 +17,9 @@ from lib.System import SystemCheck
 from lib.MS5837 import ms5837
 from lib.sen0599 import sen0599
 import COMMON
-
 # コントローラクラス
 from controller import Controller
-Con=Controller()
+
 
 SystemCheck.wifi_off()
 
@@ -43,7 +43,7 @@ ray.init(num_cpus=4)
 # ---ステータス、PC通信管理
 @ray.remote(num_cpus=1)
 class IFManager:
-    def __init__(self):
+    def __init__(self,sens_memory_name,input_memory_name,propo_memory_name,gain_memory_name):
         # ステータス
         self.STSOCKET="PREPARING"
         self.STIMU="PREPARING"
@@ -53,11 +53,19 @@ class IFManager:
         self.STCAMERA="PREPARING"
         self.STCONTROLLER="PREPARING"
 
-        # プロポデータ
-        self.PropoData=[0]*10
-
-        # PIDゲインデータ
-        self.PIDGain=[0]*9
+        # 共有メモリ
+        # センサメモリ
+        self.sens_memory=shared_memory.SharedMemory(name=sens_memory_name)
+        self.sens_arr=np.ndarray((11,),dtype=np.float32,buffer=self.sens_memory.buf)
+        # 入力値メモリ
+        self.input_memory=shared_memory.SharedMemory(name=input_memory_name)
+        self.input_arr=np.ndarray((6,),dtype=np.float32,buffer=self.input_memory.buf)
+        # プロポメモリ
+        self.propo_memory=shared_memory.SharedMemory(name=propo_memory_name)
+        self.propo_arr=np.ndarray((11,),dtype=np.float32,buffer=self.propo_memory.buf)
+        # ゲインメモリ
+        self.gain_memory=shared_memory.SharedMemory(name=gain_memory_name)
+        self.gain_arr=np.ndarray((9,),dtype=np.float32,buffer=self.gain_memory.buf)
 
         # PC通信設定
         # socket用アドレスファイルをimport
@@ -109,9 +117,9 @@ class IFManager:
     # 通信データをステータスとプロポのデータに分ける
     def data_separater(self,data):
         # 前から22個はプロポのデータが入ってくる
-        self.PropoData(self.data_selector(data[:22]))
+        self.propo_arr[:]=self.data_selector(data[:22])
         # そのあと9個はPIDゲインが入ってくる
-        self.PIDGain(data[22:31])
+        self.gain_memory[:]=data[22:31]
         # それより後ろはステータスのデータ
         StatusData=self.SA.Decoder(data[31:])
         if StatusData[0]=="WORKING":
@@ -129,7 +137,7 @@ class IFManager:
         if StatusData[6]!="PREPARING":
             self.STCONTROLLER=StatusData[6]
 
-    def Com_Thred_main(self,ComAgent: socket.socket):
+    def main_task(self,ComAgent: socket.socket):
         # 送信用データまとめ
         # 送信用データの中身([byte])
         # [ACC_X(4),ACC_Y(4),ACC_Z(4),GYR_X(4),GYR_Y(4),GYR_Z(4),PITCH(4),ROLL(4),YAW(4),STSOCKET(1),STIMU(1),STTHRUST(1),STSERVO(1),STCHU(1),STCAMERA(1)]
@@ -154,13 +162,16 @@ class IFManager:
                     0.0,0.0,          #サーボ指示値
                     *EncodeStatus]
         else :
-            SendData=[*ACC.get_emptychck(),
-                    *GYR.get_emptychck(),
-                    *EUL.get_emptychck(),
-                    Dist.get_emptychck(),
-                    Dep.get_emptychck(),
-                    *InputThrust.get_emptychck(),
-                    *InputServo.get_emptychck(),
+            GYR=[self.sens_arr[0],self.sens_arr[1],self.sens_arr[2]]
+            ACC=[self.sens_arr[3],self.sens_arr[4],self.sens_arr[5]]
+            EUL=[self.sens_arr[6],self.sens_arr[7],self.sens_arr[8]]
+            DEP=self.sens_arr[9]
+            DIST=self.sens_arr[10]
+            InputThrust=[self.input_arr[0],self.input_arr[1],self.input_arr[2],self.input_arr[3]]
+            InputServo=[self.input_arr[4],self.input_arr[5]]
+            SendData=[*ACC,*GYR,*EUL,DIST,DEP,
+                    *InputThrust,
+                    *InputServo,
                     *EncodeStatus]
         # print(SendData)
         
@@ -187,7 +198,7 @@ class IFManager:
 # ---I2Cモジュール管理---
 @ray.remote(num_cpus=1)
 class I2CManager:
-    def __init__(self,IFManager):
+    def __init__(self,IFManager,sens_memory_name):
         #モジュール使用不使用選択
         self.IMU_ENABLE=True
         self.DEPTH_ENABLE=True
@@ -195,6 +206,12 @@ class I2CManager:
         self.THRUST_ENABLE=True
         self.SERVO_ENABLE=True
         self.CHUSYAKI_ENABLE=False
+
+        # 共有メモリ
+        # センサメモリ
+        self.sens_memory=shared_memory.SharedMemory(name=sens_memory_name)
+        self.sens_arr=np.ndarray((11,),dtype=np.float32,buffer=self.sens_memory.buf)
+
 
         # I2Cモジュール定義
         self.i2c=smbus.SMBus(1)
@@ -218,7 +235,10 @@ class I2CManager:
     
     def ModuleCalibration(self):
         if self.DEPTH_ENABLE:
-            self.DepthCalibration
+            self.DepthCalibration()
+            time.sleep(0.5)
+        if self.DIST_ENABLE:
+            self.DistCalibration()
             time.sleep(0.5)
         if self.IMU_ENABLE:
             self.IMUCalibration()
@@ -255,6 +275,9 @@ class I2CManager:
         self.DS.read(ms5837.OSR_256)
         self.DS.setFluidDensity(ms5837.DENSITY_FRESHWATER)
     
+    def DistCalibration(self):
+        self.SS=sen0599.sen0599()
+    
     def ThrustCalibration(self):
         # キャリブレーション
         self.IFManager.set_status.remote("STTHRUST","CALIBRATION")
@@ -276,8 +299,74 @@ class I2CManager:
             self.IFManager.set_status.remote("STCHU","CALIBRATION_OK")
         self.IFManager.set_status.remote("STCHU","READY")
         time.sleep(2)
+    
+    def main_task(self):
+        while True:
+            # IMUデータ取得
+            if self.IMU_ENABLE:
+                gyr=self.IMU.get_gyr()
+                acc=self.IMU.get_acc()
+                self.EST.update_imu(gyr,acc)
+                eul=self.EST.quaternion.to_euler_angles_ZYX()
+            else :
+                gyr=[0.0,0.0,0.0]
+                acc=[0.0,0.0,0.0]
+                eul=[0.0,0.0,0.0]
+            
+            # 深度センサ
+            if self.DEPTH_ENABLE:
+                self.DS.read(ms5837.OSR_256)
+                dep=self.DS.depth()
+            else :
+                dep=0
+            
+            # 超音波センサ
+            if self.DIST_ENABLE:
+                dist=self.SS.read_data()
+            else:
+                dist=0
+            
+            # 共有メモリへ書き込み
+            self.sens_arr[:]=[gyr[0],gyr[1],gyr[2],
+                              acc[0],acc[1],acc[2],
+                              eul[0],eul[1],eul[2],
+                              float(dep),float(dist)]
 
 
+# ---コントローラ---
+@ray.remote(num_cpus=1)
+class Controler:
+    def __init__(self,sens_memory_name,input_memory_name,propo_memory_name,gain_memory_name):
+        # 共有メモリ
+        # センサメモリ
+        self.sens_memory=shared_memory.SharedMemory(name=sens_memory_name)
+        self.sens_arr=np.ndarray((11,),dtype=np.float32,buffer=self.sens_memory.buf)
+        # 入力値メモリ
+        self.input_memory=shared_memory.SharedMemory(name=input_memory_name)
+        self.input_arr=np.ndarray((6,),dtype=np.float32,buffer=self.input_memory.buf)
+        # プロポメモリ
+        self.propo_memory=shared_memory.SharedMemory(name=propo_memory_name)
+        self.propo_arr=np.ndarray((11,),dtype=np.float32,buffer=self.propo_memory.buf)
+        # ゲインメモリ
+        self.gain_memory=shared_memory.SharedMemory(name=gain_memory_name)
+        self.gain_arr=np.ndarray((9,),dtype=np.float32,buffer=self.gain_memory.buf)
 
-IF=IFManager()
-I2C=I2CManager(IF)
+        self.Con=Controller()
+        
+
+# 共有メモリをopen
+# センサデータ
+sens_memory=shared_memory.SharedMemory(create=True, size=np.zeros(11, dtype=np.float32).nbytes)
+sens_arr = np.ndarray((11,), dtype=np.float32, buffer=sens_memory.buf)
+# 入力データ
+input_memory=shared_memory.SharedMemory(create=True, size=np.zeros(6, dtype=np.float32).nbytes)
+input_arr = np.ndarray((6,), dtype=np.float32, buffer=input_memory.buf)
+# プロポデータ
+propo_memory=shared_memory.SharedMemory(create=True, size=np.zeros(10, dtype=np.float32).nbytes)
+propo_arr=np.ndarray((10,), dtype=np.float32, buffer=propo_memory.buf)
+# PIDゲイン
+gain_memory=shared_memory.SharedMemory(create=True, size=np.zeros(9, dtype=np.float32).nbytes)
+gain_arr=np.ndarray((9,), dtype=np.float32, buffer=gain_memory.buf)
+
+IF=IFManager(sens_memory.name,input_memory.name,propo_memory.name,gain_memory.name)
+I2C=I2CManager(IF,sens_memory.name)
