@@ -29,6 +29,7 @@ def CheckIPAddress(module):
         # 通信チェック用のクライアント立ち上げ
         client=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
         client.bind((thisIP,TestPort))
+        client.settimeout(1)
         data=""
         while True:
             #通信確認用メッセージ送信
@@ -50,17 +51,24 @@ def CheckIPAddress(module):
     elif module=="RaspberryPi":
         client=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
         client.bind(("",TestPort))
+        client.settimeout(0.5)
         data=""
+
         while True:
-            print("Check Connect...")
-            data,addr=client.recvfrom(1024)
+            try:
+                print("Check Connect...")
+                data,addr=client.recvfrom(1024)
             
-            if data.decode("utf-8")=="HelloRaspberryPi!!":
-                # 返送用メッセージ送信
-                msg="HelloPC!!"
-                SendData=msg.encode("utf-8")
-                client.sendto(SendData,addr)
-                break
+                if data.decode("utf-8")=="HelloRaspberryPi!!":
+                    # 返送用メッセージ送信
+                    msg="HelloPC!!"
+                    SendData=msg.encode("utf-8")
+                    client.sendto(SendData,addr)
+                    break
+            except socket.timeout:
+                # print("timeout retry")
+                time.sleep(2)
+
         thisIP=client.getsockname()[0]
         client.close()
         print("socket com is OK.")
@@ -81,9 +89,9 @@ def CheckIPAddress(module):
 #         next_time = ((base_time - time.time()) % interval) or interval
 #         time.sleep(next_time)
 
-def scheduler(interval, func, exectime=False):
+def scheduler(interval, func, enable=True,exectime=False):
     next_time = time.time()
-    while True:
+    while enable:
         start = time.time()
         func()
         end = time.time()

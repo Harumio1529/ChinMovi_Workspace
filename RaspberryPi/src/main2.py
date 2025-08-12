@@ -1,6 +1,6 @@
 # 標準ライブラリをimport
 import sys ,os
-import socket,time,pickle,smbus,threading,queue,cv2,ray
+import socket,time,pickle,threading,queue,cv2,ray
 from multiprocessing import shared_memory
 import time
 from datetime import datetime
@@ -16,9 +16,12 @@ from lib.Camera.camera import camera
 from lib.System import SystemCheck
 from lib.MS5837 import ms5837
 from lib.sen0599 import sen0599
-import COMMON
 # コントローラクラス
 from controller import Controller
+
+# socket用アドレスファイルをimport
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),"../..")))
+import COMMON
 
 
 SystemCheck.wifi_off()
@@ -27,8 +30,7 @@ SystemCheck.wifi_off()
 ### デバッグモード ###
 DEBUG_MODE=False
 DEBUG_PRINT=True
-
-CAMERA_ENABLE=True
+CAMERA_ENABLE=False
 
 
 #デバッグ用コンソール出力
@@ -43,7 +45,29 @@ ray.init(num_cpus=4)
 # ---ステータス、PC通信管理
 @ray.remote(num_cpus=1)
 class IFManager:
-    def __init__(self,sens_memory_name,input_memory_name,propo_memory_name,gain_memory_name):
+    def __init__(self,sens_memory_name,input_memory_name,propo_memory_name,gain_memory_name,status_memory_name):
+        # ステータスのデコーダを準備する。
+        self.SA=COMMON.StatusAnalyzer()
+        # タスク回転フラグ
+        self.task_run=True
+
+        # 共有メモリ
+        # センサメモリ
+        self.sens_memory=shared_memory.SharedMemory(name=sens_memory_name)
+        self.sens_arr=np.ndarray((11,),dtype=np.float32,buffer=self.sens_memory.buf)
+        # 入力値メモリ
+        self.input_memory=shared_memory.SharedMemory(name=input_memory_name)
+        self.input_arr=np.ndarray((8,),dtype=np.float32,buffer=self.input_memory.buf)
+        # プロポメモリ
+        self.propo_memory=shared_memory.SharedMemory(name=propo_memory_name)
+        self.propo_arr=np.ndarray((11,),dtype=np.float32,buffer=self.propo_memory.buf)
+        # ゲインメモリ
+        self.gain_memory=shared_memory.SharedMemory(name=gain_memory_name)
+        self.gain_arr=np.ndarray((9,),dtype=np.float32,buffer=self.gain_memory.buf)
+        # ステータスメモリ
+        self.status_memory=shared_memory.SharedMemory(name=status_memory_name)
+        self.status_arr=np.ndarray((7,),dtype=np.int8,buffer=self.status_memory.buf)
+        
         # ステータス
         self.STSOCKET="PREPARING"
         self.STIMU="PREPARING"
@@ -53,25 +77,14 @@ class IFManager:
         self.STCAMERA="PREPARING"
         self.STCONTROLLER="PREPARING"
 
-        # 共有メモリ
-        # センサメモリ
-        self.sens_memory=shared_memory.SharedMemory(name=sens_memory_name)
-        self.sens_arr=np.ndarray((11,),dtype=np.float32,buffer=self.sens_memory.buf)
-        # 入力値メモリ
-        self.input_memory=shared_memory.SharedMemory(name=input_memory_name)
-        self.input_arr=np.ndarray((6,),dtype=np.float32,buffer=self.input_memory.buf)
-        # プロポメモリ
-        self.propo_memory=shared_memory.SharedMemory(name=propo_memory_name)
-        self.propo_arr=np.ndarray((11,),dtype=np.float32,buffer=self.propo_memory.buf)
-        # ゲインメモリ
-        self.gain_memory=shared_memory.SharedMemory(name=gain_memory_name)
-        self.gain_arr=np.ndarray((9,),dtype=np.float32,buffer=self.gain_memory.buf)
+        self.set_status_to_sharememory()
+
+        
 
         # PC通信設定
         # socket用アドレスファイルをimport
         sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),"../..")))
-        # ステータスのデコーダを準備する。
-        self.SA=COMMON.StatusAnalyzer()
+
         # デバッグモードの時はダミーIPアドレスを使う
         if DEBUG_MODE:
             self.RasPI_IP="0.0.0.0"
@@ -80,6 +93,7 @@ class IFManager:
             self.PC_IP,self.RasPI_IP=COMMON.CheckIPAddress("RaspberryPi")
         self.set_status("STSOCKET","COM_OK")
 
+
         # COMエージェント立ち上げ
         self.set_status("STSOCKET","STANDUP_COMAGENT")
         self.ComAgent=socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -87,6 +101,28 @@ class IFManager:
         self.ComAgent.bind((self.RasPI_IP, COMMON.RasPiPort))
         self.set_status("STSOCKET","READY")
         debugprint("socket com is READY!")
+
+        threading.Thread(target=self.TimerFunc,daemon=True).start()
+    
+    def TimerFunc(self):
+        print("run")
+        COMMON.scheduler(0.1,lambda: self.main_task(),enable=self.task_run)
+    
+    def stop_task(self):
+        self.task_run=False
+    
+    def set_status_to_sharememory(self):
+        STATUS=[
+                self.STSOCKET,
+                self.STIMU,
+                self.STTHRUST,
+                self.STSERVO,
+                self.STCHU,
+                self.STCAMERA,
+                self.STCONTROLLER]
+        
+        EncodedStatus=self.SA.Encoder(STATUS)
+        self.status_arr[:]=EncodedStatus
     
     def set_status(self,target,status):
         if target=="STSOCKET":
@@ -105,7 +141,28 @@ class IFManager:
             self.STCONTROLLER=status
         else:
             print("Invalid Status Signal")
+        
+        self.set_status_to_sharememory()
     
+    # def get_status(self,target):
+    #     print("h")
+    #     if target=="STSOCKET":
+    #         return self.STSOCKET
+    #     elif target=="STIMU":
+    #         return self.STIMU
+    #     elif target=="STTHRUST":
+    #         return self.STTHRUST
+    #     elif target=="STSERVO":
+    #         return self.STSERVO
+    #     elif target=="STCHU":
+    #         return self.STCHU
+    #     elif target=="STCAMERA":
+    #         return self.STCAMERA
+    #     elif target=="STCONTROLLER":
+    #         return self.STCONTROLLER
+    #     else:
+    #         print("Invalid Status Signal")
+
     # プロポのデータを選別する。22→10
     def data_selector(self,data):   
         # 使用データは設計書参照
@@ -119,7 +176,7 @@ class IFManager:
         # 前から22個はプロポのデータが入ってくる
         self.propo_arr[:]=self.data_selector(data[:22])
         # そのあと9個はPIDゲインが入ってくる
-        self.gain_memory[:]=data[22:31]
+        self.gain_arr[:]=data[22:31]
         # それより後ろはステータスのデータ
         StatusData=self.SA.Decoder(data[31:])
         if StatusData[0]=="WORKING":
@@ -137,7 +194,7 @@ class IFManager:
         if StatusData[6]!="PREPARING":
             self.STCONTROLLER=StatusData[6]
 
-    def main_task(self,ComAgent: socket.socket):
+    def main_task(self):
         # 送信用データまとめ
         # 送信用データの中身([byte])
         # [ACC_X(4),ACC_Y(4),ACC_Z(4),GYR_X(4),GYR_Y(4),GYR_Z(4),PITCH(4),ROLL(4),YAW(4),STSOCKET(1),STIMU(1),STTHRUST(1),STSERVO(1),STCHU(1),STCAMERA(1)]
@@ -173,24 +230,25 @@ class IFManager:
                     *InputThrust,
                     *InputServo,
                     *EncodeStatus]
-        # print(SendData)
+        print(SendData)
         
             
         
         # データのバイナリ化
         SendDataBin=pickle.dumps(SendData)
         # データの送信
-        ComAgent.sendto(SendDataBin,(self.PC_IP,COMMON.PCPort))
+        self.ComAgent.sendto(SendDataBin,(self.PC_IP,COMMON.PCPort))
         
 
         # # # データ受信
         try:
-            RecvData,Fromaddr=ComAgent.recvfrom(1024)
+            RecvData,Fromaddr=self.ComAgent.recvfrom(1024)
             self.data_separater(pickle.loads(RecvData))
-            self.STSOCKET="WORKING"
+            self.set_status("STSOCKET","WORKING")
+
 
         except socket.timeout:
-            self.STSOCKET="TIMEOUT"
+            self.set_status("STSOCKET","TIMEOUT")
             # print("timeout")
 
 
@@ -198,26 +256,53 @@ class IFManager:
 # ---I2Cモジュール管理---
 @ray.remote(num_cpus=1)
 class I2CManager:
-    def __init__(self,IFManager,sens_memory_name):
+    def __init__(self,IFManager,sens_memory_name,input_memory_name,status_memory_name):
+        import smbus
+
+        # ステータスのデコーダを準備する。
+        self.SA=COMMON.StatusAnalyzer()
+
+        # i2cモジュール立ち上げ
+        self.i2c=smbus.SMBus(1)
+        
+        # タスク回転フラグ
+        self.task_run=True
+
         #モジュール使用不使用選択
         self.IMU_ENABLE=True
-        self.DEPTH_ENABLE=True
-        self.DIST_ENABLE=True
-        self.THRUST_ENABLE=True
-        self.SERVO_ENABLE=True
+        self.DEPTH_ENABLE=False
+        self.DIST_ENABLE=False
+        self.THRUST_ENABLE=False
+        self.SERVO_ENABLE=False
         self.CHUSYAKI_ENABLE=False
 
         # 共有メモリ
         # センサメモリ
         self.sens_memory=shared_memory.SharedMemory(name=sens_memory_name)
         self.sens_arr=np.ndarray((11,),dtype=np.float32,buffer=self.sens_memory.buf)
+        # 入力メモリ
+        self.input_memory=shared_memory.SharedMemory(name=input_memory_name)
+        self.input_arr=np.ndarray((8,),dtype=np.float32,buffer=self.input_memory.buf)
+        # ステータスメモリ
+        self.status_memory=shared_memory.SharedMemory(name=status_memory_name)
+        self.status_arr=np.ndarray((7,),dtype=np.int8,buffer=self.status_memory.buf)
 
 
-        # I2Cモジュール定義
-        self.i2c=smbus.SMBus(1)
-        self.lock=threading.Lock()
         # ステータスマネージャー
         self.IFManager=IFManager
+
+        
+        while True:
+            STSOCKET=self.SA.Decoder(self.status_arr)[0]
+            time.sleep(1)
+            print(STSOCKET)
+            if STSOCKET=="WORKING":
+                break
+            
+        threading.Thread(target=self.main_task,daemon=True).start()
+    
+    def InitModules(self):
+
 
         if self.IMU_ENABLE:
             self.IMU=ICM20948(self.i2c,DEBUG_PRINT)
@@ -234,24 +319,46 @@ class I2CManager:
             self.CHU2=TB6612(self.i2c,PCA9685,6,12,16,DEBUG_PRINT,LimitEnable=False)
     
     def ModuleCalibration(self):
+        
+
         if self.DEPTH_ENABLE:
             self.DepthCalibration()
             time.sleep(0.5)
+
         if self.DIST_ENABLE:
             self.DistCalibration()
             time.sleep(0.5)
+
         if self.IMU_ENABLE:
             self.IMUCalibration()
             time.sleep(0.5)
+        else:
+            self.IFManager.set_status.remote("STIMU","READY")
+            time.sleep(0.5)
+
         if self.THRUST_ENABLE:
             self.ThrustCalibration()
             time.sleep(0.5)
+        else:
+            self.IFManager.set_status.remote("STTHRUST","READY")
+            time.sleep(0.5)
+
         if self.SERVO_ENABLE:
             self.ServoCalibration()
             time.sleep(0.5)
+        else :
+            self.IFManager.set_status.remote("STSERVO","READY")
+            time.sleep(0.5)
+        
         if self.CHUSYAKI_ENABLE:
             self.ChusyakiCalibration()
             time.sleep(0.5)
+        else:
+            self.IFManager.set_status.remote("STCHU","READY")
+            time.sleep(0.5)
+        
+        self.IFManager.set_status.remote("STCAMERA","READY")
+
 
     
     def IMUCalibration(self):
@@ -301,8 +408,12 @@ class I2CManager:
         time.sleep(2)
     
     def main_task(self):
-        while True:
+        self.InitModules()
+        self.ModuleCalibration()
+
+        while self.task_run:
             # IMUデータ取得
+
             if self.IMU_ENABLE:
                 gyr=self.IMU.get_gyr()
                 acc=self.IMU.get_acc()
@@ -331,42 +442,107 @@ class I2CManager:
                               acc[0],acc[1],acc[2],
                               eul[0],eul[1],eul[2],
                               float(dep),float(dist)]
+            
+            InputData=self.input_arr
+
+            # モジュール操作入力
+            if self.THRUST_ENABLE:
+                self.TH.set_thrust(InputData[0],InputData[1],InputData[2],InputData[3])
+            if self.SERVO_ENABLE:
+                self.SRV.set_servo(InputData[4],InputData[5])
+            if self.CHUSYAKI_ENABLE:
+                self.CHU1.set_chusyaki(InputData[6])
+                self.CHU2.set_chusyaki(InputData[7])
+            
+            time.sleep(1)
+
+    def stop_task(self):
+        self.task_run=False
 
 
 # ---コントローラ---
 @ray.remote(num_cpus=1)
-class Controler:
-    def __init__(self,sens_memory_name,input_memory_name,propo_memory_name,gain_memory_name):
+class Control:
+    def __init__(self,IFManager,sens_memory_name,input_memory_name,propo_memory_name,gain_memory_name,status_memory_name):
+        # タスク回転フラグ
+        self.task_run=True
+
+        # IFマネージャー
+        self.IFManager=IFManager
+
         # 共有メモリ
         # センサメモリ
         self.sens_memory=shared_memory.SharedMemory(name=sens_memory_name)
         self.sens_arr=np.ndarray((11,),dtype=np.float32,buffer=self.sens_memory.buf)
         # 入力値メモリ
         self.input_memory=shared_memory.SharedMemory(name=input_memory_name)
-        self.input_arr=np.ndarray((6,),dtype=np.float32,buffer=self.input_memory.buf)
+        self.input_arr=np.ndarray((8,),dtype=np.float32,buffer=self.input_memory.buf)
         # プロポメモリ
         self.propo_memory=shared_memory.SharedMemory(name=propo_memory_name)
         self.propo_arr=np.ndarray((11,),dtype=np.float32,buffer=self.propo_memory.buf)
         # ゲインメモリ
         self.gain_memory=shared_memory.SharedMemory(name=gain_memory_name)
         self.gain_arr=np.ndarray((9,),dtype=np.float32,buffer=self.gain_memory.buf)
+        # ステータスメモリ
+        self.status_memory=shared_memory.SharedMemory(name=status_memory_name)
+        self.status_arr=np.ndarray((7,),dtype=np.int8,buffer=self.status_memory.buf)
 
         self.Con=Controller()
+
+        threading.Thread(target=self.TimerFunc,daemon=True).start()
         
+    
+    def TimerFunc(self):
+        COMMON.scheduler(0.01,lambda: self.main_task(),enable=self.task_run)
+    
+    def stop_task(self):
+        self.task_run=False
+    
+    def main_task(self):
+        STCONTROLLER=self.IFManager.get_status.remote("STCONTROLLER")
+        # InputData=self.Con.Controller(self.propo_arr,self.sens_arr,self.gain_arr,STCONTROLLER)
+        # self.input_arr[:]=[InputData[0],InputData[1],InputData[2],InputData[3],InputData[4],InputData[5],InputData[6],InputData[7]]
+        
+        
+
+
 
 # 共有メモリをopen
 # センサデータ
 sens_memory=shared_memory.SharedMemory(create=True, size=np.zeros(11, dtype=np.float32).nbytes)
 sens_arr = np.ndarray((11,), dtype=np.float32, buffer=sens_memory.buf)
 # 入力データ
-input_memory=shared_memory.SharedMemory(create=True, size=np.zeros(6, dtype=np.float32).nbytes)
-input_arr = np.ndarray((6,), dtype=np.float32, buffer=input_memory.buf)
+input_memory=shared_memory.SharedMemory(create=True, size=np.zeros(8, dtype=np.float32).nbytes)
+input_arr = np.ndarray((8,), dtype=np.float32, buffer=input_memory.buf)
 # プロポデータ
-propo_memory=shared_memory.SharedMemory(create=True, size=np.zeros(10, dtype=np.float32).nbytes)
-propo_arr=np.ndarray((10,), dtype=np.float32, buffer=propo_memory.buf)
+propo_memory=shared_memory.SharedMemory(create=True, size=np.zeros(11, dtype=np.float32).nbytes)
+propo_arr=np.ndarray((11,), dtype=np.float32, buffer=propo_memory.buf)
 # PIDゲイン
 gain_memory=shared_memory.SharedMemory(create=True, size=np.zeros(9, dtype=np.float32).nbytes)
 gain_arr=np.ndarray((9,), dtype=np.float32, buffer=gain_memory.buf)
+# ステータスでーた
+status_memory=shared_memory.SharedMemory(create=True, size=np.zeros(7, dtype=np.int8).nbytes)
+status_arr=np.ndarray((7,), dtype=np.int8, buffer=status_memory.buf)
 
-IF=IFManager(sens_memory.name,input_memory.name,propo_memory.name,gain_memory.name)
-I2C=I2CManager(IF,sens_memory.name)
+IF=IFManager.remote(sens_memory.name,input_memory.name,propo_memory.name,gain_memory.name,status_memory.name)
+I2C=I2CManager.remote(IF,sens_memory.name,input_memory.name,status_memory.name)
+# MotionControl=Control.remote(IF,sens_memory.name,input_memory.name,propo_memory.name,gain_memory.name,status_memory.name)
+
+try:
+    while True:
+        time.sleep(1)
+except KeyboardInterrupt:
+    ray.get(IF.stop_task.remote())
+    ray.get(I2C.stop_task.remote())
+    # ray.get(MotionControl.stop_task.remote())
+
+    sens_memory.close()
+    sens_memory.unlink()
+    input_memory.close()
+    input_memory.unlink()
+    propo_memory.close()
+    propo_memory.unlink()
+    gain_memory.close()
+    gain_memory.unlink()
+
+    ray.shutdown
