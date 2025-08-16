@@ -30,7 +30,7 @@ SystemCheck.wifi_off()
 ### デバッグモード ###
 DEBUG_MODE=False
 DEBUG_PRINT=True
-CAMERA_ENABLE=True
+CAMERA_ENABLE=False
 
 
 #デバッグ用コンソール出力
