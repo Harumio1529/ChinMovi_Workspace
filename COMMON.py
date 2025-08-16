@@ -29,7 +29,6 @@ def CheckIPAddress(module):
         # 通信チェック用のクライアント立ち上げ
         client=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
         client.bind((thisIP,TestPort))
-        client.settimeout(1)
         data=""
         while True:
             #通信確認用メッセージ送信
