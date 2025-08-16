@@ -77,16 +77,7 @@ def CheckIPAddress(module):
     else:
         print("The augument is invalid. Set PC or RaspberryPi")
 
-#### 定周期大麻 ####
-# interval -> 実行周期[s]
-# func -> 実行関数
-# def scheduler(interval, func,exectime=False):
-#     base_time = time.time()
-#     next_time = 0
-#     while True:
-#         func()
-#         next_time = ((base_time - time.time()) % interval) or interval
-#         time.sleep(next_time)
+
 
 def scheduler(interval, func, enable=True,exectime=False):
     next_time = time.time()

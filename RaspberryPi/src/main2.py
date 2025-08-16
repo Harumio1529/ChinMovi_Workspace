@@ -29,8 +29,22 @@ SystemCheck.wifi_off()
 
 ### デバッグモード ###
 DEBUG_MODE=False
-DEBUG_PRINT=True
-CAMERA_ENABLE=False
+DEBUG_PRINT=False
+CAMERA_ENABLE=True
+
+#モジュール使用不使用選択
+IMU_ENABLE=True
+DEPTH_ENABLE=False
+DIST_ENABLE=False
+THRUST_ENABLE=True
+SERVO_ENABLE=True
+CHUSYAKI_ENABLE=False
+
+# IMUキャリブレーション回数
+CALIBRATION_NUM=1
+
+# 録画
+RECORD_ENABLE=True
 
 
 #デバッグ用コンソール出力
@@ -69,14 +83,6 @@ class IFManagerClass:
         self.status_arr=np.ndarray((7,),dtype=np.int8,buffer=self.status_memory.buf)
         self.init_status()
         
-        # ステータス
-        # self.STSOCKET="PREPARING"
-        # self.STIMU="PREPARING"
-        # self.STTHRUST="PREPARING"
-        # self.STSERVO="PREPARING"
-        # self.STCHU="PREPARING"
-        # self.STCAMERA="PREPARING"
-        # self.STCONTROLLER="PREPARING"
 
         
 
@@ -262,15 +268,15 @@ class I2CManagerClass:
         self.task_run=True
 
         #モジュール使用不使用選択
-        self.IMU_ENABLE=True
-        self.DEPTH_ENABLE=False
-        self.DIST_ENABLE=False
-        self.THRUST_ENABLE=False
-        self.SERVO_ENABLE=False
-        self.CHUSYAKI_ENABLE=False
+        self.IMU_ENABLE=IMU_ENABLE
+        self.DEPTH_ENABLE=DEPTH_ENABLE
+        self.DIST_ENABLE=DIST_ENABLE
+        self.THRUST_ENABLE=THRUST_ENABLE
+        self.SERVO_ENABLE=SERVO_ENABLE
+        self.CHUSYAKI_ENABLE=CHUSYAKI_ENABLE
 
         # IMUキャリブレーション回数
-        self.CALIBRATION_NUM=1
+        self.CALIBRATION_NUM=CALIBRATION_NUM
 
         # 共有メモリ
         # センサメモリ
@@ -283,7 +289,7 @@ class I2CManagerClass:
         self.status_memory=shared_memory.SharedMemory(name=status_memory_name)
         self.status_arr=np.ndarray((7,),dtype=np.int8,buffer=self.status_memory.buf)
 
-
+        self.input_arr[:]=[1600,1600,1600,1600,2048,2048,0,0]
         
         while True:
             STSOCKET=self.SA.Decoder(self.status_arr)[0]
@@ -402,6 +408,8 @@ class I2CManagerClass:
         self.set_status("STTHRUST","CALIBRATION")
         self.set_status("STTHRUST",self.TH.Calibration())
         self.TH.set_thrust(1650,1650,1650,1650)
+        time.sleep(1)
+        self.TH.set_thrust(1600,1600,1600,1600)
         self.set_status("STTHRUST","READY")
 
     def ServoCalibration(self):
@@ -456,6 +464,7 @@ class I2CManagerClass:
                               float(dep),float(dist)]
             
             InputData=self.input_arr
+            print(InputData)
 
             # モジュール操作入力
             if self.THRUST_ENABLE:
@@ -470,12 +479,17 @@ class I2CManagerClass:
 
     def stop_task(self):
         self.task_run=False
+        self.TH.close()
+        # self.CHU1.close()
+        # self.CHU2.close()
+        self.SRV.close()
+        print("module stop")
 
 
 # ---コントローラ---
 @ray.remote(num_cpus=1)
 class ControllerClass:
-    def __init__(self,IFManager,sens_memory_name,input_memory_name,propo_memory_name,gain_memory_name,status_memory_name):
+    def __init__(self,sens_memory_name,input_memory_name,propo_memory_name,gain_memory_name,status_memory_name,camera_memory_name):
         # ステータスのデコーダを準備する。
         self.SA=COMMON.StatusAnalyzer()
         
@@ -498,6 +512,9 @@ class ControllerClass:
         # ステータスメモリ
         self.status_memory=shared_memory.SharedMemory(name=status_memory_name)
         self.status_arr=np.ndarray((7,),dtype=np.int8,buffer=self.status_memory.buf)
+        # カメラメモリ
+        self.camera_memory=shared_memory.SharedMemory(name=camera_memory_name)
+        self.camera_arr=np.ndarray((3,),dtype=np.float32,buffer=self.camera_memory.buf)
 
         self.Con=Controller()
 
@@ -548,19 +565,25 @@ class ControllerClass:
 # ---カメラ---
 @ray.remote(num_cpus=1)
 class CameraClass:
-    def __init__(self,status_memory_name):
+    def __init__(self,status_memory_name,camera_memory_name):
         # ステータスのデコーダを準備する。
         self.SA=COMMON.StatusAnalyzer()
 
         # タスク回転フラグ
         self.task_run=True
         # 録画
-        self.RECORD_ENABLE=True
+        self.RECORD_ENABLE=RECORD_ENABLE
 
         # 共有メモリ
         # ステータスメモリ
         self.status_memory=shared_memory.SharedMemory(name=status_memory_name)
         self.status_arr=np.ndarray((7,),dtype=np.int8,buffer=self.status_memory.buf)
+        # カメラメモリ
+        self.camera_memory=shared_memory.SharedMemory(name=camera_memory_name)
+        self.camera_arr=np.ndarray((3,),dtype=np.float32,buffer=self.camera_memory.buf)
+
+        self.h=0
+        self.w=0
 
         while True:
             STCHU=self.SA.Decoder(self.status_arr)[4]
@@ -607,14 +630,14 @@ class CameraClass:
             if self.RECORD_ENABLE:
                 fps    = self.cap.get(cv2.CAP_PROP_FPS)
                 ret, low = self.cap.read()
-                h,w,c=low.shape
+                self.h,self.w,c=low.shape
                 # ファイル名前
                 logpath="/home/mori/ChinMovi_Workspace/RaspberryPi/log"
                 now=datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
                 logfilename=logpath+"/RecordData_"+now+".m4v"
                 fname=logfilename
                 fmt    = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
-                size=(w,h)
+                size=(self.w,self.h)
                 self.writer = cv2.VideoWriter(fname, fmt, fps, size)
             return "CAPTURE_OK"
         
@@ -636,9 +659,11 @@ class CameraClass:
         if self.SA.Decoder(self.status_arr)[5]=="SERCH_MODE":
             ret, low = self.cap.read()
             frame=self.CM.Clahe(low)
+            # print("boke")
             
         else :
             ret, frame = self.cap.read()
+            # print("aho")
         
         if self.RECORD_ENABLE:
             self.writer.write(frame)
@@ -667,11 +692,26 @@ gain_arr=np.ndarray((9,), dtype=np.float32, buffer=gain_memory.buf)
 # ステータスデータ
 status_memory=shared_memory.SharedMemory(create=True, size=np.zeros(7, dtype=np.int8).nbytes)
 status_arr=np.ndarray((7,), dtype=np.int8, buffer=status_memory.buf)
+# カメラデータ
+camera_memory=shared_memory.SharedMemory(create=True, size=np.zeros(3, dtype=np.float32).nbytes)
+camera_arr=np.ndarray((3,), dtype=np.float32, buffer=camera_memory.buf)
 
-IF=IFManagerClass.remote(sens_memory.name,input_memory.name,propo_memory.name,gain_memory.name,status_memory.name)
-I2C=I2CManagerClass.remote(sens_memory.name,input_memory.name,status_memory.name)
-MotionControl=ControllerClass.remote(IF,sens_memory.name,input_memory.name,propo_memory.name,gain_memory.name,status_memory.name)
-CAMERA=CameraClass.remote(status_memory.name)
+IF=IFManagerClass.remote(sens_memory.name,
+                         input_memory.name,
+                         propo_memory.name,
+                         gain_memory.name,
+                         status_memory.name)
+I2C=I2CManagerClass.remote(sens_memory.name,
+                           input_memory.name,
+                           status_memory.name)
+MotionControl=ControllerClass.remote(sens_memory.name,
+                                     input_memory.name,
+                                     propo_memory.name,
+                                     gain_memory.name,
+                                     status_memory.name,
+                                     camera_memory.name)
+CAMERA=CameraClass.remote(status_memory.name,
+                          camera_memory.name)
 
 try:
     while True:
@@ -692,6 +732,8 @@ except KeyboardInterrupt:
     gain_memory.unlink()
     status_memory.close()
     status_memory.unlink()
+    camera_memory.close()
+    camera_memory.unlink()
 
     ray.shutdown()
     SystemCheck.wifi_on()

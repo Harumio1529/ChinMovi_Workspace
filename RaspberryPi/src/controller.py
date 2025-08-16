@@ -189,4 +189,4 @@ class PID:
         self.integ+=0.5*(e_now+self.e_old)*self.Ts #台形積分
         self.e_old=e_now
 
-        return (P_out+I_out+D_out+I_out)/600
+        return (P_out+I_out+D_out+I_out)

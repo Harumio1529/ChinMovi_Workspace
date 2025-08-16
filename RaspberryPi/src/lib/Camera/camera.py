@@ -4,16 +4,20 @@ import numpy as np
 
 class camera():
     def __init__(self,DEBUG_PRINT):
-        self.LOW_COLOR1 = np.array([0, 50, 50]) # 各最小値を指定
-        self.HIGH_COLOR1 = np.array([6, 255, 255]) # 各最大値を指定
-        self.LOW_COLOR2 = np.array([174, 50, 50])
+        self.LOW_COLOR1 = np.array([0, 0, 0]) # 各最小値を指定
+        self.HIGH_COLOR1 = np.array([60, 255, 255]) # 各最大値を指定
+        self.LOW_COLOR2 = np.array([170, 0, 0])
         self.HIGH_COLOR2 = np.array([180, 255, 255])
         self.DP=DEBUG_PRINT
+
 
     
     def debugprint(self,data):
         if self.DP:
             print(data)
+
+    # def detect_red(self):
+        
 
     def Clahe(self,img):
 
@@ -36,27 +40,49 @@ class camera():
         num_labels = num_labels - 1
         status = np.delete(status, 0, 0)
         centroids = np.delete(centroids, 0, 0)
+      
+        try :
+            max_index = np.argmax(status[:,4])
+            for index in range(num_labels):
+                
+                
+                
+                x=status[index][0] # x:バウンディングボックスの左上X座標
+                y=status[index][1] # y:バウンディングボックスの左上Y座標
+                w=status[index][2] # w:バウンディングボックスの幅
+                h=status[index][3] # h:バウンディングボックスの高さ
+                s=status[index][4] # s:バウンディングボックスの面積
+                mx=int(centroids[index][0]) # mx:バウンディングボックスの重心の座標
+                my=int(centroids[index][1]) # my:バウンディングボックスの重心の座標
 
-        for index in range(num_labels):
-            x=status[index][0] # x:バウンディングボックスの左上X座標
-            y=status[index][1] # y:バウンディングボックスの左上Y座標
-            w=status[index][2] # w:バウンディングボックスの幅
-            h=status[index][3] # h:バウンディングボックスの高さ
-            s=status[index][4] # s:バウンディングボックスの面積
-            mx=int(centroids[index][0]) # mx:バウンディングボックスの重心の座標
-            my=int(centroids[index][1]) # my:バウンディングボックスの重心の座標
+                color=(255,255,255)
+                if index==max_index:
+                    color=(255,0,255)
+                    mx_max=mx
+                    my_max=my
+                    s_max=s
 
-            # 面積が一定以上の赤をバウンディングボックスで囲む
-            if s>300 :
-                # cv2.rectangle(masked_img,(x,y),(x+w,y+h),(255,0,255))
-                # cv2.circle(masked_img,(mx,my),5,(255,255,0))
-                # cv2.putText(masked_img, "%d"%s, (x-15, y+h+15), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 0))
-                cv2.rectangle(img,(x,y),(x+w,y+h),(255,0,255))
-                cv2.circle(img,(mx,my),5,(255,255,0))
-                cv2.putText(img, "%d"%s, (x-15, y+h+15), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 0))
 
-        # return masked_img
-        return img
+
+                # 面積が一定以上の赤をバウンディングボックスで囲む
+                if s>300 :
+                    # cv2.rectangle(masked_img,(x,y),(x+w,y+h),(255,0,255))
+                    # cv2.circle(masked_img,(mx,my),5,(255,255,0))
+                    # cv2.putText(masked_img, "%d"%s, (x-15, y+h+15), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 0))
+                    cv2.rectangle(img,(x,y),(x+w,y+h),color)
+                    cv2.circle(img,(mx,my),5,(255,255,0))
+                    cv2.putText(img, "%d"%s, (x-15, y+h+15), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 0))
+            
+
+
+                
+            # return masked_img
+            return img,mx_max,my_max,s_max
+        
+        except :
+            return img,np.nan,np.nan,np.nan
+    
+    
 
 
     
@@ -66,15 +92,16 @@ class camera():
 
 def main():
     cap = cv2.VideoCapture(0)
-    CM=camera()
+    CM=camera(False)
 
     while True:
         ret, low = cap.read()
         h,w,c=low.shape
-        print(h)
-        print(w)
-        frame=CM.Clahe(low)
+        frame,mx,my=CM.Clahe(low)
         cv2.imshow('image', frame)
+        mx_norma=(mx/(w-1))*2-1
+        my_norma=-1*((my/(h-1))*2-1)
+        print(mx,my,mx_norma,my_norma)
         # cv2.imshow('image', low)
 
         key = cv2.waitKey(1)
@@ -82,7 +109,7 @@ def main():
             break
 
     cap.release()
-    cv2.destroyAllWindows()
+    # cv2.destroyAllWindows()
 
 if __name__=="__main__":
     main()
