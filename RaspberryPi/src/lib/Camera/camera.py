@@ -9,6 +9,7 @@ class camera():
         self.LOW_COLOR2 = np.array([174, 50, 50])
         self.HIGH_COLOR2 = np.array([180, 255, 255])
         self.DP=DEBUG_PRINT
+
     
     def debugprint(self,data):
         if self.DP:
@@ -56,6 +57,8 @@ class camera():
 
         # return masked_img
         return img
+
+
     
     
 

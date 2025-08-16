@@ -20,18 +20,23 @@ class Controller():
         self.maxiter=20/0.01
 
         # PIDコントローラ
-        self.ROLL=PID(0.01)
         self.PITCH=PID(0.01)
         self.YAW=PID(0.01)
+        self.HEAVE=PID(0.01)
+
+        self.d_heave=0
+
 
     def ManualController(self,PropoData):
         self.iter=0
         # print(PropoData)
+        # 上下
         Heave=-1*PropoData[0]
         Yawing=PropoData[1]
         Pitching=-1*PropoData[2]
         Zenshin=-0.5*(PropoData[3]+1)
         Koutai=-0.5*(PropoData[4]+1)
+        # 前後
         Surge=Zenshin-Koutai
 
         # スラスタ
@@ -65,25 +70,49 @@ class Controller():
             self.input_chu2=-1
         input_chu_all=[self.input_chu1,self.input_chu2]
         
-        return [input_th_all,input_srv_all,input_chu_all]
+        return [*input_th_all,*input_srv_all,*input_chu_all]
     
-    def ReferenceGenerator(Propodata):
+    def ReferenceGenerator_fromPropo(self,Propodata):
+        # オイラー角
         ref_roll=0.0
-        ref_pitch=-1*Propodata[2]*180
+        ref_pitch=-1*Propodata[2]*50
         ref_yaw=0.0
-        return [ref_roll,ref_pitch,ref_yaw]
+        # ヒーブ
+        if Propodata[0]>0.5:
+            self.d_heave+=0.05
+        elif Propodata[0]<0.5:
+            self.d_heave-=0.05
+        ref_heave=0.8+self.d_heave
+        # サージ
+        Zenshin=-0.5*(Propodata[3]+1)
+        Koutai=-0.5*(Propodata[4]+1)
+        # 前後
+        ref_serge=Zenshin-Koutai
+        return [ref_roll,ref_pitch,ref_yaw,ref_heave,ref_serge]
     
 
     def Attitude_PIDController(self,Ref,SensData,PIDGain):
         # ピッチング計算
-        Pitching=self.PITCH.Controller(Ref[1],SensData[2][2],PIDGain[1],PIDGain[4],PIDGain[7])
+        Pitching=self.PITCH.Control(Ref[1],SensData[1],PIDGain[1],PIDGain[4],PIDGain[7])
         # ヨーイング計算
-        Yawing=self.YAW.Controller(0,0,PIDGain[2],PIDGain[5],PIDGain[8])
-        
-        
+        # ドリフトするのでヨー制御は無効
+        Yawing=self.YAW.Control(0,0,PIDGain[2],PIDGain[5],PIDGain[8])
+        # ヒーブ計算
+        Heave=self.HEAVE.Control(Ref[3],SensData[9],PIDGain[0],PIDGain[3],PIDGain[6])
+        # サージ計算(プロポのデータをそのままぶち込む)
+        Surge=Ref[4]
 
+        self.input_th1=int(-600*(Surge+Yawing)+1600)
+        self.input_th2=int(600*(Surge-Yawing)+1600)
+        self.input_th3=int(600*(Pitching+Heave)+1600)
+        self.input_th4=int(600*(-Pitching+Heave)+1600)
+        input_th_all=[self.input_th1,self.input_th2,self.input_th3,self.input_th4]
+
+
+        input_srv_all=[self.input_srv1,self.input_srv2]
+        input_chu_all=[self.input_chu1,self.input_chu2]
         
-        return [[0.0,0.0,0.0,0.0],[0.0,0.0],[0.0,0.0]]
+        return [*input_th_all,*input_srv_all,*input_chu_all]
 
     def FullAuto_Controller(self,PropoData):
         # import math
@@ -121,23 +150,23 @@ class Controller():
 
 
 
-        return [input_th_all,input_srv_all,input_chu_all]
+        return [*input_th_all,*input_srv_all,*input_chu_all]
         
 
         
 
 
     def Controller(self,PropoData,SensData,PIDGain,CNTRLMODE):
-        
+        print(PropoData)
         if CNTRLMODE=="MANUAL_CONTROL":
             return self.ManualController(PropoData)
         elif CNTRLMODE=="ATTITUDE_CONTROL":
-            return self.Attitude_PIDController(self.ReferenceGenerator(PropoData),SensData,PIDGain)
+            return self.Attitude_PIDController(self.ReferenceGenerator_fromPropo(PropoData),SensData,PIDGain)
         elif CNTRLMODE=="AUTO_CONTROL":
             return self.FullAuto_Controller(PropoData)
         else :
             print("use valid controll mode")
-            return [[0.0,0.0,0.0,0.0],[0.0,0.0],[0.0,0.0]]
+            return [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]
 
 class PID:
     def __init__(self,Ts):
@@ -145,7 +174,7 @@ class PID:
         self.integ=0.0
         self.e_old=0.0
     
-    def Controller(self,Ref,Sens,Kp,Ki,Kd):
+    def Control(self,Ref,Sens,Kp,Ki,Kd):
         e_now=Ref-Sens
         #P項
         P_out=e_now*Kp
@@ -159,4 +188,4 @@ class PID:
         self.integ+=0.5*(e_now+self.e_old)*self.Ts #台形積分
         self.e_old=e_now
 
-        return P_out+I_out+D_out+I_out
+        return (P_out+I_out+D_out+I_out)/600

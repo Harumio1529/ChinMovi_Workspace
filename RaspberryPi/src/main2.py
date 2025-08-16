@@ -30,7 +30,7 @@ SystemCheck.wifi_off()
 ### デバッグモード ###
 DEBUG_MODE=False
 DEBUG_PRINT=True
-CAMERA_ENABLE=False
+CAMERA_ENABLE=True
 
 
 #デバッグ用コンソール出力
@@ -44,7 +44,7 @@ ray.init(num_cpus=4)
 
 # ---ステータス、PC通信管理
 @ray.remote(num_cpus=1)
-class IFManager:
+class IFManagerClass:
     def __init__(self,sens_memory_name,input_memory_name,propo_memory_name,gain_memory_name,status_memory_name):
         # ステータスのデコーダを準備する。
         self.SA=COMMON.StatusAnalyzer()
@@ -67,17 +67,18 @@ class IFManager:
         # ステータスメモリ
         self.status_memory=shared_memory.SharedMemory(name=status_memory_name)
         self.status_arr=np.ndarray((7,),dtype=np.int8,buffer=self.status_memory.buf)
+        self.init_status()
         
         # ステータス
-        self.STSOCKET="PREPARING"
-        self.STIMU="PREPARING"
-        self.STTHRUST="PREPARING"
-        self.STSERVO="PREPARING"
-        self.STCHU="PREPARING"
-        self.STCAMERA="PREPARING"
-        self.STCONTROLLER="PREPARING"
+        # self.STSOCKET="PREPARING"
+        # self.STIMU="PREPARING"
+        # self.STTHRUST="PREPARING"
+        # self.STSERVO="PREPARING"
+        # self.STCHU="PREPARING"
+        # self.STCAMERA="PREPARING"
+        # self.STCONTROLLER="PREPARING"
 
-        self.set_status_to_sharememory()
+        
 
         
 
@@ -105,63 +106,59 @@ class IFManager:
         threading.Thread(target=self.TimerFunc,daemon=True).start()
     
     def TimerFunc(self):
-        print("run")
-        COMMON.scheduler(0.1,lambda: self.main_task(),enable=self.task_run)
+        COMMON.scheduler(0.01,lambda: self.main_task(),enable=self.task_run)
     
     def stop_task(self):
         self.task_run=False
     
-    def set_status_to_sharememory(self):
+    def init_status(self):
         STATUS=[
-                self.STSOCKET,
-                self.STIMU,
-                self.STTHRUST,
-                self.STSERVO,
-                self.STCHU,
-                self.STCAMERA,
-                self.STCONTROLLER]
+                "PREPARING",
+                "PREPARING",
+                "PREPARING",
+                "PREPARING",
+                "PREPARING",
+                "PREPARING",
+                "PREPARING"]
         
         EncodedStatus=self.SA.Encoder(STATUS)
         self.status_arr[:]=EncodedStatus
     
+
     def set_status(self,target,status):
+        status_now=self.SA.Decoder(self.status_arr)
+
         if target=="STSOCKET":
-            self.STSOCKET=status
+            status_now[0]=status
         elif target=="STIMU":
-            self.STIMU=status
+            status_now[1]=status
         elif target=="STTHRUST":
-            self.STTHRUST=status
+            status_now[2]=status
         elif target=="STSERVO":
-            self.STSERVO=status
+            status_now[3]=status
         elif target=="STCHU":
-            self.STCHU=status
+            status_now[4]=status
         elif target=="STCAMERA":
-            self.STCAMERA=status
+            status_now[5]=status
         elif target=="STCONTROLLER":
-            self.STCONTROLLER=status
+            status_now[6]=status
         else:
             print("Invalid Status Signal")
-        
-        self.set_status_to_sharememory()
+
+        self.status_arr[:]=self.SA.Encoder(status_now)
     
-    # def get_status(self,target):
-    #     print("h")
-    #     if target=="STSOCKET":
-    #         return self.STSOCKET
-    #     elif target=="STIMU":
-    #         return self.STIMU
-    #     elif target=="STTHRUST":
-    #         return self.STTHRUST
-    #     elif target=="STSERVO":
-    #         return self.STSERVO
-    #     elif target=="STCHU":
-    #         return self.STCHU
-    #     elif target=="STCAMERA":
-    #         return self.STCAMERA
-    #     elif target=="STCONTROLLER":
-    #         return self.STCONTROLLER
-    #     else:
-    #         print("Invalid Status Signal")
+    def status_controller(self,status_now):
+        # ステータスを監視して、全部ReadyならWorkingに遷移してもらう
+        if status_now[1]=="READY" and status_now[2]=="READY" and status_now[3]=="READY" and status_now[4]=="READY" and status_now[5]=="READY":
+            status_now[1]="WORKING"
+            status_now[2]="WORKING"
+            status_now[3]="WORKING"
+            status_now[4]="WORKING"
+            status_now[5]="VIDEO_MODE"
+            status_now[6]="MANUAL_CONTROL"
+
+        self.status_arr[:]=self.SA.Encoder(status_now)
+    
 
     # プロポのデータを選別する。22→10
     def data_selector(self,data):   
@@ -180,36 +177,32 @@ class IFManager:
         # それより後ろはステータスのデータ
         StatusData=self.SA.Decoder(data[31:])
         if StatusData[0]=="WORKING":
-            self.STSOCKET=StatusData[0]
+            self.set_status("STSOCKET",StatusData[0])
         if StatusData[1]=="WORKING":
-            self.STIMU=StatusData[1]
+            self.set_status("STIMU",StatusData[1])
         if StatusData[2]=="WORKING":
-            self.STTHRUST=StatusData[2]
+            self.set_status("STTHRUST",StatusData[2])
         if StatusData[3]=="WORKING":
-            self.STSERVO=StatusData[3]
+            self.set_status("STSERVO",StatusData[3])
         if StatusData[4]=="WORKING":
-            self.STCHU=StatusData[4]
+            self.set_status("STCHU",StatusData[4])
         if StatusData[5]=="SERCH_MODE" or StatusData[5]=="VIDEO_MODE":
-            self.STCAMERA=StatusData[5]
+            self.set_status("STCAMERA",StatusData[5])
         if StatusData[6]!="PREPARING":
-            self.STCONTROLLER=StatusData[6]
+            self.set_status("STCONTROLLER",StatusData[6])
 
     def main_task(self):
         # 送信用データまとめ
         # 送信用データの中身([byte])
         # [ACC_X(4),ACC_Y(4),ACC_Z(4),GYR_X(4),GYR_Y(4),GYR_Z(4),PITCH(4),ROLL(4),YAW(4),STSOCKET(1),STIMU(1),STTHRUST(1),STSERVO(1),STCHU(1),STCAMERA(1)]
         # ステータス信号のエンコード
-        EncodeStatus=self.SA.Encoder([
-                                    self.STSOCKET,
-                                    self.STIMU,
-                                    self.STTHRUST,
-                                    self.STSERVO,
-                                    self.STCHU,
-                                    self.STCAMERA,
-                                    self.STCONTROLLER])
+        EncodeStatus=self.status_arr.astype(int).tolist()
+        DecodeStatus=self.SA.Decoder(EncodeStatus)
+        # print(DecodeStatus)
+        self.status_controller(DecodeStatus)
 
         # センサデータをぶち込む
-        if self.STIMU!="WORKING" and self.STTHRUST!="WORKING":
+        if DecodeStatus[1]!="WORKING" and DecodeStatus[2]!="WORKING":
             SendData=[0.0,0.0,0.0,      #加速度
                     0.0,0.0,0.0,      #ジャイロ
                     0.0,0.0,0.0,      #オイラー各
@@ -219,18 +212,18 @@ class IFManager:
                     0.0,0.0,          #サーボ指示値
                     *EncodeStatus]
         else :
-            GYR=[self.sens_arr[0],self.sens_arr[1],self.sens_arr[2]]
-            ACC=[self.sens_arr[3],self.sens_arr[4],self.sens_arr[5]]
-            EUL=[self.sens_arr[6],self.sens_arr[7],self.sens_arr[8]]
-            DEP=self.sens_arr[9]
-            DIST=self.sens_arr[10]
-            InputThrust=[self.input_arr[0],self.input_arr[1],self.input_arr[2],self.input_arr[3]]
-            InputServo=[self.input_arr[4],self.input_arr[5]]
+            GYR=[float(self.sens_arr[0]),float(self.sens_arr[1]),float(self.sens_arr[2])]
+            ACC=[float(self.sens_arr[3]),float(self.sens_arr[4]),float(self.sens_arr[5])]
+            EUL=[float(self.sens_arr[6]),float(self.sens_arr[7]),float(self.sens_arr[8])]
+            DEP=float(self.sens_arr[9])
+            DIST=float(self.sens_arr[10])
+            InputThrust=[float(self.input_arr[0]),float(self.input_arr[1]),float(self.input_arr[2]),float(self.input_arr[3])]
+            InputServo=[float(self.input_arr[4]),float(self.input_arr[5])]
             SendData=[*ACC,*GYR,*EUL,DIST,DEP,
                     *InputThrust,
                     *InputServo,
                     *EncodeStatus]
-        print(SendData)
+        # print(SendData)
         
             
         
@@ -255,8 +248,8 @@ class IFManager:
 
 # ---I2Cモジュール管理---
 @ray.remote(num_cpus=1)
-class I2CManager:
-    def __init__(self,IFManager,sens_memory_name,input_memory_name,status_memory_name):
+class I2CManagerClass:
+    def __init__(self,sens_memory_name,input_memory_name,status_memory_name):
         import smbus
 
         # ステータスのデコーダを準備する。
@@ -276,6 +269,9 @@ class I2CManager:
         self.SERVO_ENABLE=False
         self.CHUSYAKI_ENABLE=False
 
+        # IMUキャリブレーション回数
+        self.CALIBRATION_NUM=1
+
         # 共有メモリ
         # センサメモリ
         self.sens_memory=shared_memory.SharedMemory(name=sens_memory_name)
@@ -288,18 +284,36 @@ class I2CManager:
         self.status_arr=np.ndarray((7,),dtype=np.int8,buffer=self.status_memory.buf)
 
 
-        # ステータスマネージャー
-        self.IFManager=IFManager
-
         
         while True:
             STSOCKET=self.SA.Decoder(self.status_arr)[0]
             time.sleep(1)
-            print(STSOCKET)
             if STSOCKET=="WORKING":
                 break
             
         threading.Thread(target=self.main_task,daemon=True).start()
+    
+    def set_status(self,target,status):
+        status_now=self.SA.Decoder(self.status_arr)
+
+        if target=="STSOCKET":
+            status_now[0]=status
+        elif target=="STIMU":
+            status_now[1]=status
+        elif target=="STTHRUST":
+            status_now[2]=status
+        elif target=="STSERVO":
+            status_now[3]=status
+        elif target=="STCHU":
+            status_now[4]=status
+        elif target=="STCAMERA":
+            status_now[5]=status
+        elif target=="STCONTROLLER":
+            status_now[6]=status
+        else:
+            print("Invalid Status Signal")
+
+        self.status_arr[:]=self.SA.Encoder(status_now)
     
     def InitModules(self):
 
@@ -333,32 +347,30 @@ class I2CManager:
             self.IMUCalibration()
             time.sleep(0.5)
         else:
-            self.IFManager.set_status.remote("STIMU","READY")
+            self.set_status("STIMU","READY")
             time.sleep(0.5)
 
         if self.THRUST_ENABLE:
             self.ThrustCalibration()
             time.sleep(0.5)
         else:
-            self.IFManager.set_status.remote("STTHRUST","READY")
+            self.set_status("STTHRUST","READY")
             time.sleep(0.5)
 
         if self.SERVO_ENABLE:
             self.ServoCalibration()
             time.sleep(0.5)
         else :
-            self.IFManager.set_status.remote("STSERVO","READY")
+            self.set_status("STSERVO","READY")
             time.sleep(0.5)
         
         if self.CHUSYAKI_ENABLE:
             self.ChusyakiCalibration()
             time.sleep(0.5)
         else:
-            self.IFManager.set_status.remote("STCHU","READY")
+            self.set_status("STCHU","READY")
             time.sleep(0.5)
         
-        self.IFManager.set_status.remote("STCAMERA","READY")
-
 
     
     def IMUCalibration(self):
@@ -368,13 +380,13 @@ class I2CManager:
         # センサ設定
         self.IMU.set_scale_gyr("500dps")
         self.IMU.set_scale_acc("2G")
-        self.IFManager.set_status.remote("STIMU","SETUP")
+        self.set_status("STIMU","SETUP")
         # キャリブレーション
-        self.IFManager.set_status.remote("STIMU","CALIBRATION")
-        self.IFManager.set_status.remote("STIMU",self.IMU.calibration(1000))
+        self.set_status("STIMU","CALIBRATION")
+        self.set_status("STIMU",self.IMU.calibration(self.CALIBRATION_NUM))
         # 姿勢角推定設定
         self.EST=MadgwickAHRS(sampleperiod=0.01,beta=1.0)
-        self.IFManager.set_status.remote("STIMU","READY")
+        self.set_status("STIMU","READY")
 
     
     def DepthCalibration(self):
@@ -387,24 +399,24 @@ class I2CManager:
     
     def ThrustCalibration(self):
         # キャリブレーション
-        self.IFManager.set_status.remote("STTHRUST","CALIBRATION")
-        self.IFManager.set_status.remote("STTHRUST",self.TH.Calibration())
+        self.set_status("STTHRUST","CALIBRATION")
+        self.set_status("STTHRUST",self.TH.Calibration())
         self.TH.set_thrust(1650,1650,1650,1650)
-        self.IFManager.set_status.remote("STTHRUST","READY")
+        self.set_status("STTHRUST","READY")
 
     def ServoCalibration(self):
         # キャリブレーション（と言ってるが動かしてるだけ）
-        self.IFManager.set_status.remote("STSERVO","CALIBRATION")
+        self.set_status("STSERVO","CALIBRATION")
         time.sleep(0.1)
-        self.IFManager.set_status.remote("STSERVO",self.SRV.Caribration())
-        self.IFManager.set_status.remote("STSERVO","READY")
+        self.set_status("STSERVO",self.SRV.Caribration())
+        self.set_status("STSERVO","READY")
         
     def ChusyakiCalibration(self):
         # キャリブレーション(と言ってるが動かしてるだけ)
-        self.IFManager.set_status.remote("STCHU","CALIBRATION")
+        self.set_status("STCHU","CALIBRATION")
         if self.CHU1.caribration()=="CALIBRATION_OK" and self.CHU2.caribration()=="CALIBRATION_OK":
-            self.IFManager.set_status.remote("STCHU","CALIBRATION_OK")
-        self.IFManager.set_status.remote("STCHU","READY")
+            self.set_status("STCHU","CALIBRATION_OK")
+        self.set_status("STCHU","READY")
         time.sleep(2)
     
     def main_task(self):
@@ -454,7 +466,7 @@ class I2CManager:
                 self.CHU1.set_chusyaki(InputData[6])
                 self.CHU2.set_chusyaki(InputData[7])
             
-            time.sleep(1)
+            time.sleep(0.001)
 
     def stop_task(self):
         self.task_run=False
@@ -462,13 +474,13 @@ class I2CManager:
 
 # ---コントローラ---
 @ray.remote(num_cpus=1)
-class Control:
+class ControllerClass:
     def __init__(self,IFManager,sens_memory_name,input_memory_name,propo_memory_name,gain_memory_name,status_memory_name):
+        # ステータスのデコーダを準備する。
+        self.SA=COMMON.StatusAnalyzer()
+        
         # タスク回転フラグ
         self.task_run=True
-
-        # IFマネージャー
-        self.IFManager=IFManager
 
         # 共有メモリ
         # センサメモリ
@@ -489,6 +501,13 @@ class Control:
 
         self.Con=Controller()
 
+        while True:
+            STIMU=self.SA.Decoder(self.status_arr)[1]
+            time.sleep(1)
+            if STIMU=="WORKING":
+                break
+
+
         threading.Thread(target=self.TimerFunc,daemon=True).start()
         
     
@@ -498,10 +517,135 @@ class Control:
     def stop_task(self):
         self.task_run=False
     
+    def set_status(self,target,status):
+        status_now=self.SA.Decoder(self.status_arr)
+
+        if target=="STSOCKET":
+            status_now[0]=status
+        elif target=="STIMU":
+            status_now[1]=status
+        elif target=="STTHRUST":
+            status_now[2]=status
+        elif target=="STSERVO":
+            status_now[3]=status
+        elif target=="STCHU":
+            status_now[4]=status
+        elif target=="STCAMERA":
+            status_now[5]=status
+        elif target=="STCONTROLLER":
+            status_now[6]=status
+        else:
+            print("Invalid Status Signal")
+
+        self.status_arr[:]=self.SA.Encoder(status_now)
+    
     def main_task(self):
-        STCONTROLLER=self.IFManager.get_status.remote("STCONTROLLER")
-        # InputData=self.Con.Controller(self.propo_arr,self.sens_arr,self.gain_arr,STCONTROLLER)
-        # self.input_arr[:]=[InputData[0],InputData[1],InputData[2],InputData[3],InputData[4],InputData[5],InputData[6],InputData[7]]
+        STCONTROLLER=self.SA.Decoder(self.status_arr)[6]
+        InputData=self.Con.Controller(self.propo_arr,self.sens_arr,self.gain_arr,STCONTROLLER)
+        self.input_arr[:]=[InputData[0],InputData[1],InputData[2],InputData[3],InputData[4],InputData[5],InputData[6],InputData[7]]
+
+
+# ---カメラ---
+@ray.remote(num_cpus=1)
+class CameraClass:
+    def __init__(self,status_memory_name):
+        # ステータスのデコーダを準備する。
+        self.SA=COMMON.StatusAnalyzer()
+
+        # タスク回転フラグ
+        self.task_run=True
+        # 録画
+        self.RECORD_ENABLE=True
+
+        # 共有メモリ
+        # ステータスメモリ
+        self.status_memory=shared_memory.SharedMemory(name=status_memory_name)
+        self.status_arr=np.ndarray((7,),dtype=np.int8,buffer=self.status_memory.buf)
+
+        while True:
+            STCHU=self.SA.Decoder(self.status_arr)[4]
+            time.sleep(1)
+            if STCHU=="READY":
+                break
+        
+        if CAMERA_ENABLE:
+            self.CM=camera(DEBUG_PRINT)
+            self.cap=cv2.VideoCapture(0)
+            self.set_status("STCAMERA",self.check_camera_enable())
+            threading.Thread(target=self.TimerFunc,daemon=True).start()
+
+        else :
+            self.set_status("STCAMERA","CAPTURE_OK")
+
+        self.set_status("STCAMERA","READY")
+
+        
+    def set_status(self,target,status):
+        status_now=self.SA.Decoder(self.status_arr)
+
+        if target=="STSOCKET":
+            status_now[0]=status
+        elif target=="STIMU":
+            status_now[1]=status
+        elif target=="STTHRUST":
+            status_now[2]=status
+        elif target=="STSERVO":
+            status_now[3]=status
+        elif target=="STCHU":
+            status_now[4]=status
+        elif target=="STCAMERA":
+            status_now[5]=status
+        elif target=="STCONTROLLER":
+            status_now[6]=status
+        else:
+            print("Invalid Status Signal")
+
+        self.status_arr[:]=self.SA.Encoder(status_now)
+
+    def check_camera_enable(self):
+        if self.cap.isOpened():
+            if self.RECORD_ENABLE:
+                fps    = self.cap.get(cv2.CAP_PROP_FPS)
+                ret, low = self.cap.read()
+                h,w,c=low.shape
+                # ファイル名前
+                logpath="/home/mori/ChinMovi_Workspace/RaspberryPi/log"
+                now=datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+                logfilename=logpath+"/RecordData_"+now+".m4v"
+                fname=logfilename
+                fmt    = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
+                size=(w,h)
+                self.writer = cv2.VideoWriter(fname, fmt, fps, size)
+            return "CAPTURE_OK"
+        
+        else :
+            print("Camera is NOT Connected ...")
+            return " "
+    
+    
+    def TimerFunc(self):
+        COMMON.scheduler(0.1,lambda: self.main_task(),enable=self.task_run)
+    
+    def stop_task(self):
+        self.task_run=False
+        self.cap.release()
+        self.writer.release()
+
+    
+    def main_task(self):
+        if self.SA.Decoder(self.status_arr)[5]=="SERCH_MODE":
+            ret, low = self.cap.read()
+            frame=self.CM.Clahe(low)
+            
+        else :
+            ret, frame = self.cap.read()
+        
+        if self.RECORD_ENABLE:
+            self.writer.write(frame)
+        
+        
+
+
         
         
 
@@ -520,13 +664,14 @@ propo_arr=np.ndarray((11,), dtype=np.float32, buffer=propo_memory.buf)
 # PIDゲイン
 gain_memory=shared_memory.SharedMemory(create=True, size=np.zeros(9, dtype=np.float32).nbytes)
 gain_arr=np.ndarray((9,), dtype=np.float32, buffer=gain_memory.buf)
-# ステータスでーた
+# ステータスデータ
 status_memory=shared_memory.SharedMemory(create=True, size=np.zeros(7, dtype=np.int8).nbytes)
 status_arr=np.ndarray((7,), dtype=np.int8, buffer=status_memory.buf)
 
-IF=IFManager.remote(sens_memory.name,input_memory.name,propo_memory.name,gain_memory.name,status_memory.name)
-I2C=I2CManager.remote(IF,sens_memory.name,input_memory.name,status_memory.name)
-# MotionControl=Control.remote(IF,sens_memory.name,input_memory.name,propo_memory.name,gain_memory.name,status_memory.name)
+IF=IFManagerClass.remote(sens_memory.name,input_memory.name,propo_memory.name,gain_memory.name,status_memory.name)
+I2C=I2CManagerClass.remote(sens_memory.name,input_memory.name,status_memory.name)
+MotionControl=ControllerClass.remote(IF,sens_memory.name,input_memory.name,propo_memory.name,gain_memory.name,status_memory.name)
+CAMERA=CameraClass.remote(status_memory.name)
 
 try:
     while True:
@@ -534,7 +679,8 @@ try:
 except KeyboardInterrupt:
     ray.get(IF.stop_task.remote())
     ray.get(I2C.stop_task.remote())
-    # ray.get(MotionControl.stop_task.remote())
+    ray.get(MotionControl.stop_task.remote())
+    ray.get(CAMERA.stop_task.remote())
 
     sens_memory.close()
     sens_memory.unlink()
@@ -544,6 +690,8 @@ except KeyboardInterrupt:
     propo_memory.unlink()
     gain_memory.close()
     gain_memory.unlink()
+    status_memory.close()
+    status_memory.unlink()
 
-    ray.shutdown
+    ray.shutdown()
     SystemCheck.wifi_on()
