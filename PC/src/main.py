@@ -119,15 +119,6 @@ def data_separeter(data):
 
 def status_controler():
     print([STSOCKET.get_emptychck(),STIMU.get_emptychck(),STTHRUST.get_emptychck(),STSERVO.get_emptychck(),STCHU.get_emptychck(),STCAMERA.get_emptychck(),STCONTROLLER.get_emptychck()])
-    # ステータスを監視して、全部ReadyならWorkingに遷移してもらう
-    # if STIMU.get_emptychck()=="READY" and STTHRUST.get_emptychck()=="READY" and STSERVO.get_emptychck()=="READY" and STCHU.get_emptychck()=="READY" and STCAMERA.get_emptychck()=="READY":
-    #     STIMU.put("WORKING")
-    #     STTHRUST.put("WORKING")
-    #     STSERVO.put("WORKING")
-    #     STCHU.put("WORKING")
-    #     STCAMERA.put("VIDEO_MODE")
-    #     STCONTROLLER.put("MANUAL_CONTROL")
-    # ステータスがすべてworkingの場合にGUIからの変更を受け付ける
     if STIMU.get_emptychck()=="WORKING" and STTHRUST.get_emptychck()=="WORKING" and STSERVO.get_emptychck()=="WORKING" and STCHU.get_emptychck()=="WORKING":
         SelectedCameraMode,SelectedControlMode=gui.GetControlModeDatafromGUI()
         STCAMERA.put(SelectedCameraMode)
