@@ -5,15 +5,15 @@ TestPort=5000
 RasPiPort=5001
 PCPort=5002
 
-KpRoll=1.0
-KiRoll=2.0
-KdRoll=3.0
-KpPitch=4.0
-KiPitch=5.0
-KdPitch=6.0
-KpYaw=7.0
-KiYaw=8.0
-KdYaw=9.0
+KpRoll=0.01
+KiRoll=0.01
+KdRoll=0.01
+KpPitch=0.01
+KiPitch=0.01
+KdPitch=0.01
+KpYaw=0.01
+KiYaw=0.01
+KdYaw=0.01
 
 
 def CheckIPAddress(module):
