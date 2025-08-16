@@ -464,7 +464,7 @@ class I2CManagerClass:
                               float(dep),float(dist)]
             
             InputData=self.input_arr
-            print(InputData)
+            # print(InputData)
 
             # モジュール操作入力
             if self.THRUST_ENABLE:
@@ -557,6 +557,7 @@ class ControllerClass:
         self.status_arr[:]=self.SA.Encoder(status_now)
     
     def main_task(self):
+        print(self.camera_arr)
         STCONTROLLER=self.SA.Decoder(self.status_arr)[6]
         InputData=self.Con.Controller(self.propo_arr,self.sens_arr,self.gain_arr,STCONTROLLER)
         self.input_arr[:]=[InputData[0],InputData[1],InputData[2],InputData[3],InputData[4],InputData[5],InputData[6],InputData[7]]
@@ -658,12 +659,21 @@ class CameraClass:
     def main_task(self):
         if self.SA.Decoder(self.status_arr)[5]=="SERCH_MODE":
             ret, low = self.cap.read()
-            frame=self.CM.Clahe(low)
+            frame,mx,my,s=self.CM.Clahe(low)
+            mx_norma=(mx/(self.w-1))*2-1
+            my_norma=-1*((my/(self.h-1))*2-1)
             # print("boke")
             
         else :
             ret, frame = self.cap.read()
+            mx_norma=np.nan
+            my_norma=np.nan
+            s=np.nan
             # print("aho")
+        
+        self.camera_arr[:]=[mx_norma,my_norma,s]
+        
+        
         
         if self.RECORD_ENABLE:
             self.writer.write(frame)
