@@ -82,7 +82,8 @@ class Controller():
             self.d_heave+=0.05
         elif Propodata[0]<0.5:
             self.d_heave-=0.05
-        ref_heave=0.8+self.d_heave
+        # ref_heave=0.8+self.d_heave
+        ref_heave=0+self.d_heave
         # サージ
         Zenshin=-0.5*(Propodata[3]+1)
         Koutai=-0.5*(Propodata[4]+1)
@@ -93,7 +94,7 @@ class Controller():
 
     def Attitude_PIDController(self,Ref,SensData,PIDGain):
         # ピッチング計算
-        Pitching=self.PITCH.Control(Ref[1],SensData[1],PIDGain[1],PIDGain[4],PIDGain[7])
+        Pitching=self.PITCH.Control(Ref[1],SensData[7],PIDGain[1],PIDGain[4],PIDGain[7])
         # ヨーイング計算
         # ドリフトするのでヨー制御は無効
         Yawing=self.YAW.Control(0,0,PIDGain[2],PIDGain[5],PIDGain[8])
@@ -102,12 +103,13 @@ class Controller():
         # サージ計算(プロポのデータをそのままぶち込む)
         Surge=Ref[4]
 
+        print(Ref[1],SensData[7],Pitching)
         self.input_th1=int(-600*(Surge+Yawing)+1600)
         self.input_th2=int(600*(Surge-Yawing)+1600)
         self.input_th3=int(600*(Pitching+Heave)+1600)
         self.input_th4=int(600*(-Pitching+Heave)+1600)
         input_th_all=[self.input_th1,self.input_th2,self.input_th3,self.input_th4]
-
+        # print(input_th_all)
 
         input_srv_all=[self.input_srv1,self.input_srv2]
         input_chu_all=[self.input_chu1,self.input_chu2]
@@ -157,7 +159,6 @@ class Controller():
 
 
     def Controller(self,PropoData,SensData,PIDGain,CNTRLMODE):
-        print(PropoData)
         if CNTRLMODE=="MANUAL_CONTROL":
             return self.ManualController(PropoData)
         elif CNTRLMODE=="ATTITUDE_CONTROL":
