@@ -133,23 +133,25 @@ class Controller():
         
         return [*input_th_all,*input_srv_all,*input_chu_all]
 
+    # サーボはcloseがTrue
+    # 注射器はずっとFalse
     def FullAuto_Controller(self,SensData,CameraData,CNTRLMODE):
         # ステートマシンで現在のモードを確認して上書きする
         CNTRLMODE=self.StateMachine(SensData,CameraData,CNTRLMODE)
 
         # AutoControlの時の処理
         if CNTRLMODE=="AUTO_CONTROL":
-            [Pitching,Yawing,Heave,Surge]=[0.0,0.0,0.0,0.0]
+            [Pitching,Yawing,Heave,Surge],Servo,Chusyaki=[0.0,0.0,0.0,0.0],True,False
 
 
         # Preparingの時の処理
         if CNTRLMODE=="FULLAUTO_PREPARING":
-            [Pitching,Yawing,Heave,Surge]=self.PreparingMode(SensData)
+            [Pitching,Yawing,Heave,Surge],Servo,Chusyaki=self.PreparingMode(SensData)
         
         # Readyの処理
         if CNTRLMODE=="FULLAUTO_READY":
             # ステートだけ変更動作内容はPreparingと全く同じ
-            [Pitching,Yawing,Heave,Surge]=self.PreparingMode(SensData)
+            [Pitching,Yawing,Heave,Surge],Servo,Chusyaki=self.PreparingMode(SensData)
 
         # Serch時の処理
         if CNTRLMODE=="SEARCH":
@@ -158,13 +160,13 @@ class Controller():
             self.serch_counter+=1
             if self.serch_counter<=int(self.serch_time*100):
             # 回りながら探索
-                [Pitching,Yawing,Heave,Surge]=self.SearchMode(SensData)
+                [Pitching,Yawing,Heave,Surge],Servo,Chusyaki=self.SearchMode(SensData)
             else:
                 CNTRLMODE = "DETERMIN"
-                [Pitching,Yawing,Heave,Surge]=[0.0,0.0,0.0,0.0]
+                [Pitching,Yawing,Heave,Surge],Servo,Chusyaki=[0.0,0.0,0.0,0.0]
         
         if CNTRLMODE=="DETERMIN":
-            [Pitching,Yawing,Heave,Surge]=self.Determin(SensData)
+            [Pitching,Yawing,Heave,Surge],Servo,Chusyaki=self.Determin(SensData)
 
 
         # ランダムヲーク時の処理
@@ -246,12 +248,12 @@ class Controller():
             Yawing=0
             Heave=0
             Surge=0
-        return [Pitching,Yawing,Heave,Surge]
+        return [Pitching,Yawing,Heave,Surge],True,False
     
     def SearchMode(self,SensData,CameraData):
         Current_AREA = CameraData[2]
         self.AREA_MEMORY.append(Current_AREA)
-        return [0.0,1.0,0.0,0.0]
+        return [0.0,1.0,0.0,0.0],True,False
     
     def Determin(self,SensData,CameraData):
         # mean_num個の移動平均
@@ -269,20 +271,15 @@ class Controller():
         CurrentMeanArea = np.mean(self.last_values) if self.last_values.size > 0 else None
         if abs(CurrentMeanArea - max_AREA) < max_AREA*self.Area_tol:
             CNTRLMODE="APPROACH"
-            return [0.0,0.0,0.0,0.0]
+            return [0.0,0.0,0.0,0.0],True,False
         else:
-            return [0.0,1.0,0.0,0.0]
+            return [0.0,1.0,0.0,0.0],True,False
         
 
     def ApproachMode(self,SensData,CameraData):
-        Pitching=0
-        Yawing=self.YAW.Control(0,CameraData[0],self.KpYaw,self.KiYaw,self.KdYaw)
-        Heave=self.HEAVE.Control(0,CameraData[1],self.KpDep,self.KiDep,self.KdDep)
-        Surge=
         return
     
     def AttackMode(self,SensData,CameraData):
-
         return [Pitching,Yawing,Heave,Surge],Servo,Chusyaki
     
     
