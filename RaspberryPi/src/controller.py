@@ -9,6 +9,9 @@ class Controller():
         self.AREA_MEMORY = []
         self.Area_tol = 1e-3
 
+        self.CurrentMeanArea=0
+        self.max_AREA=0
+
         self.input_srv1=2048
         self.input_srv2=2048
         self.input_th1=1600
@@ -136,22 +139,33 @@ class Controller():
     # サーボはcloseがTrue
     # 注射器はずっとFalse
     def FullAuto_Controller(self,SensData,CameraData,CNTRLMODE):
-        # ステートマシンで現在のモードを確認して上書きする
-        CNTRLMODE=self.StateMachine(SensData,CameraData,CNTRLMODE)
+        # 水中か確認
+        self.Chck_UnedrWater(SensData[9],SensData[10])
+        # 水中じゃなかったら問答無用でPreparingに移行
+        if self.UnderWaterFlg==False:
+            CNTRLMODE="FULLAUTO_PREPARING"
 
         # AutoControlの時の処理
         if CNTRLMODE=="AUTO_CONTROL":
             [Pitching,Yawing,Heave,Surge],Servo,Chusyaki=[0.0,0.0,0.0,0.0],True,False
 
-
+        
         # Preparingの時の処理
         if CNTRLMODE=="FULLAUTO_PREPARING":
             [Pitching,Yawing,Heave,Surge],Servo,Chusyaki=self.PreparingMode(SensData)
+            # ベース深度とセンサ深度の誤差が0.1以内に3s間いれば次のステートに移行する。
+            if abs(SensData[9]-self.dep_base)<=0.1:
+                self.dep_reach_num+=1
+            if self.dep_reach_num>=300:
+                CNTRLMODE="FULLAUTO_READY"
         
         # Readyの処理
         if CNTRLMODE=="FULLAUTO_READY":
             # ステートだけ変更動作内容はPreparingと全く同じ
             [Pitching,Yawing,Heave,Surge],Servo,Chusyaki=self.PreparingMode(SensData)
+            # カメラからのデータがemptyじゃなければ次のステートに移行する。
+            if len(CameraData)>=0:
+                CNTRLMODE="SEARCH"
 
         # Serch時の処理
         if CNTRLMODE=="SEARCH":
@@ -163,10 +177,17 @@ class Controller():
                 [Pitching,Yawing,Heave,Surge],Servo,Chusyaki=self.SearchMode(SensData)
             else:
                 CNTRLMODE = "DETERMIN"
-                [Pitching,Yawing,Heave,Surge],Servo,Chusyaki=[0.0,0.0,0.0,0.0]
+                [Pitching,Yawing,Heave,Surge],Servo,Chusyaki=[0.0,0.0,0.0,0.0],True,False
         
+        # DETERMINの時の処理
         if CNTRLMODE=="DETERMIN":
-            [Pitching,Yawing,Heave,Surge],Servo,Chusyaki=self.Determin(SensData)
+            if abs(self.CurrentMeanArea - self.max_AREA) < self.max_AREA*self.Area_tol:
+                [Pitching,Yawing,Heave,Surge],Servo,Chusyaki=[0.0,0.0,0.0,0.0],True,False
+                CNTRLMODE="APPROACH"
+            else:
+                [Pitching,Yawing,Heave,Surge],Servo,Chusyaki=self.Determin(SensData)
+            
+
 
 
         # ランダムヲーク時の処理
@@ -189,12 +210,28 @@ class Controller():
         if CNTRLMODE=="TARGET_CHANGE":
             return
         
+        # ミキサー
+        self.input_th1=int(-600*(Surge+Yawing)+1600)
+        self.input_th2=int(600*(Surge-Yawing)+1600)
+        self.input_th3=int(600*(Pitching+Heave)+1600)
+        self.input_th4=int(600*(-Pitching+Heave)+1600)
         input_th_all=[self.input_th1,self.input_th2,self.input_th3,self.input_th4]
+        # アーム
+        if Servo:
+            # Trueで閉じる
+            self.input_srv1=2800  #値大で閉じる
+            self.input_srv2=600   #値小で閉じる
+        else:
+            # Falseで開く
+            self.input_srv1=1300
+            self.input_srv2=2100
         input_srv_all=[self.input_srv1,self.input_srv2]
+            
+        # 注射器
+        self.input_chu1=0
+        self.input_chu2=0
         input_chu_all=[self.input_chu1,self.input_chu2]
-
-
-
+        
         return [*input_th_all,*input_srv_all,*input_chu_all],CNTRLMODE
     
 
@@ -206,34 +243,6 @@ class Controller():
         else:
             self.UnderWaterFlg=False
     
-    def StateMachine(self,SensData,CameraData,CNTRLMODE):
-        # AutoControlの場合はパススルー
-        if CNTRLMODE=="AUTO_CONTROL":
-            return "AUTO_CONTROL"
-        
-        # 水中か確認
-        self.Chck_UnedrWater(SensData[9],SensData[10])
-        # 水中じゃなかったら問答無用でPreparingに移行
-        if self.UnderWaterFlg==False:
-            return "FULLAUTO_PREPARING"
-        
-        # Preparing→Ready
-        if CNTRLMODE=="FULLAUTO_PREPARING":
-            # ベース深度とセンサ深度の誤差が0.1以内に3s間いれば次のステートに移行する。
-            if abs(SensData[9]-self.dep_base)<=0.1:
-                self.dep_reach_num+=1
-            if self.dep_reach_num>=300:
-                return "FULLAUTO_READY"
-        
-        # Ready→Serch
-        if CNTRLMODE=="FULLAUTO_READY":
-            # カメラからのデータがemptyじゃなければ次のステートに移行する。
-            if len(CameraData)>=0:
-                return "SEARCH"
-        
-        # Serch→Approach
-            
-
 
     def PreparingMode(self,SensData):
         Dep=SensData[9]
@@ -260,7 +269,7 @@ class Controller():
         mean_num = 60
         data = np.array(self.AREA_MEMORY, dtype=float)
         avgs = np.convolve(data, np.ones(mean_num)/mean_num, mode="valid")
-        max_AREA = np.max(avgs)
+        self.max_AREA = np.max(avgs)
         self.AREA_MEMORY.clear()
 
         # 目標に照準を合わせる
@@ -268,14 +277,11 @@ class Controller():
         self.AREA_MEMORY.append(Current_AREA)
         self.area_values = np.array(self.AREA_MEMORY, dtype=float)
         self.last_values = self.area_values[-30:]
-        CurrentMeanArea = np.mean(self.last_values) if self.last_values.size > 0 else None
-        if abs(CurrentMeanArea - max_AREA) < max_AREA*self.Area_tol:
-            CNTRLMODE="APPROACH"
-            return [0.0,0.0,0.0,0.0],True,False
-        else:
-            return [0.0,1.0,0.0,0.0],True,False
-        
+        self.CurrentMeanArea = np.mean(self.last_values) if self.last_values.size > 0 else None
 
+        return [0.0,1.0,0.0,0.0],True,False
+
+            
     def ApproachMode(self,SensData,CameraData):
         return
     
