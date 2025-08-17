@@ -148,7 +148,12 @@ class Controller():
             # ステートだけ変更動作内容はPreparingと全く同じ
             [Pitching,Yawing,Heave,Surge]=self.PreparingMode(SensData)
 
-
+        # Serch時の処理
+        if CNTRLMODE=="SERCH_READY":
+            return
+        
+        # Approach時の処理
+        
 
         input_th_all=[self.input_th1,self.input_th2,self.input_th3,self.input_th4]
         input_srv_all=[self.input_srv1,self.input_srv2]
@@ -212,7 +217,12 @@ class Controller():
         return [Pitching,Yawing,Heave,Surge]
     
     def SearchMode(self,SensData,CameraData):
-
+        return
+    
+    def ApproachMode(self,SensData,CameraData):
+        return
+    
+    
     
 
 
