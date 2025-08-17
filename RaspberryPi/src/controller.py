@@ -8,6 +8,8 @@ class Controller():
         self.SA=SA
         self.AREA_MEMORY = []
         self.Area_tol = 1e-3
+        self.ApproachDist = 1e-2
+        self.AttackDist = 200 # mm
 
         self.input_srv1=2048
         self.input_srv2=2048
@@ -168,14 +170,17 @@ class Controller():
         if CNTRLMODE=="DETERMIN":
             [Pitching,Yawing,Heave,Surge],Servo,Chusyaki=self.Determin(SensData)
 
-
         # ランダムヲーク時の処理
         if CNTRLMODE=="RANDOM_WALK":
             return
         
+        if CNTRLMODE=="HEADING_ADJUST":
+            [Pitching,Yawing,Heave,Surge],Servo,Chusyaki=self.Heading_adjust(SensData)
+
+
         # 接近モード時の処理
         if CNTRLMODE=="APPROACH":
-            return
+            [Pitching,Yawing,Heave,Surge],Servo,Chusyaki=self.Approach(SensData)
         
         # 割るモード時の処理
         if CNTRLMODE=="ATTACK":
@@ -264,7 +269,7 @@ class Controller():
         self.AREA_MEMORY.clear()
 
         # 目標に照準を合わせる
-        Current_AREA = SensData[2]
+        Current_AREA = CameraData[2]
         self.AREA_MEMORY.append(Current_AREA)
         self.area_values = np.array(self.AREA_MEMORY, dtype=float)
         self.last_values = self.area_values[-30:]
@@ -276,9 +281,39 @@ class Controller():
             return [0.0,1.0,0.0,0.0],True,False
         
 
-    def ApproachMode(self,SensData,CameraData):
-        return
+    def Heading_adjust(self,SensData,CameraData):
+        self.ObjectX = self.CameraData[0]
+        self.ObjectY = self.CameraData[1]
+        self.TargetX = 0.
+        self.TargetY = 0.
+        # TargetXが0に近づくようにYawを調整
+        self.errX = (self.ObjectX - self.TargetX)
+        self.Yawing = self.errX
+        # TargetYが0に近づくようにHeaveを調整
+        self.errY = (self.ObjectY - self.TargetY)
+        self.Heave = self.errY
+        # 誤差が閾値以下になればAPPROACH移行する
+        if abs(self.errX)+abs(self.errY) < self.ApproachDist:
+            self.CNTRLMODE = "APPROACH"
+        return [0.,self.Yawing,self.Heave,0.],Servo,Chusyaki
     
+    def Approach(self,SensData,CameraData):
+        Surge = 1.
+        self.ObjectX = self.CameraData[0]
+        self.ObjectY = self.CameraData[1]
+        self.TargetX = 0.
+        self.TargetY = 0.
+        # TargetXが0に近づくようにYawを調整
+        self.errX = (self.ObjectX - self.TargetX)
+        self.Yawing = self.errX
+        # TargetYが0に近づくようにHeaveを調整
+        self.errY = (self.ObjectY - self.TargetY)
+        self.Heave = self.errY
+        # 誤差が閾値以下になればAPPROACH移行する
+        self.SS_Distance = SensData[10]
+        if self.SS_Distance < self.AttackDist:
+            self.CNTRLMODE = "APPROACH"
+        
     def AttackMode(self,SensData,CameraData):
         return [Pitching,Yawing,Heave,Surge],Servo,Chusyaki
     
