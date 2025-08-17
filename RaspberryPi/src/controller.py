@@ -185,6 +185,25 @@ class Controller():
 
         # 他の風船に行く時の処理
         if CNTRLMODE=="TARGET_CHANGE":
+            #微速で1秒後ずさりする
+            # serch_time 秒間探索する
+            self.TARGET_CNG_bkwd_timing = 1 # 1sec
+            self.TARGET_CNG_turn_timing = 2
+            self.TARGET_CNG_fwd_timing = 3
+            self.TARGET_CNG_counter += 1
+
+            if self.TARGET_CNG_counter <= int(self.TARGET_CNG_bkwd_timing*100): #0~1secの時
+                #微速で1秒後ずさりする
+                [Pitching,Yawing,Heave,Surge]=self.TargetCngMode0(SensData)
+            elif (self.TARGET_CNG_counter > int((self.TARGET_CNG_bkwd_timing)*100)) and (self.TARGET_CNG_counter <= int(self.TARGET_CNG_turn_timing*100)): #0~1secの時
+                #1秒回頭する (60deg分)
+                [Pitching,Yawing,Heave,Surge]=self.TargetCngMode1(SensData)
+            else:
+                CNTRLMODE = "DETERMIN"
+                [Pitching,Yawing,Heave,Surge]=[0.0,0.0,0.0,0.0]
+
+            #微速で前進する
+            #SEARCH MODEへ
             return
         
         input_th_all=[self.input_th1,self.input_th2,self.input_th3,self.input_th4]
