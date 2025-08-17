@@ -1,3 +1,4 @@
+import time
 
 # コントローラ計算
 class Controller():
@@ -117,7 +118,6 @@ class Controller():
         # サージ計算(プロポのデータをそのままぶち込む)
         Surge=Ref[4]
 
-        print(Ref[1],SensData[7],Pitching)
         self.input_th1=int(-600*(Surge+Yawing)+1600)
         self.input_th2=int(600*(Surge-Yawing)+1600)
         self.input_th3=int(600*(Pitching+Heave)+1600)

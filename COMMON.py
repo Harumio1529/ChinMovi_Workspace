@@ -81,21 +81,21 @@ def CheckIPAddress(module):
 
 
 def scheduler(interval, func, enable=True,exectime=False):
-    next_time = time.time()
+    next_time = time.perf_counter()
     while enable:
-        start = time.time()
+        start = time.perf_counter()
         func()
-        end = time.time()
+        end = time.perf_counter()
 
         if exectime:
             print(f"Execution time: {end - start:.6f} sec")
 
         next_time += interval
-        sleep_time = next_time - time.time()
+        sleep_time = next_time - time.perf_counter()
         if sleep_time > 0:
             time.sleep(sleep_time)
         else:
-            next_time = time.time()
+            next_time = time.perf_counter()
 
 
         
