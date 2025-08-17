@@ -149,12 +149,29 @@ class Controller():
             [Pitching,Yawing,Heave,Surge]=self.PreparingMode(SensData)
 
         # Serch時の処理
-        if CNTRLMODE=="SERCH_READY":
+        if CNTRLMODE=="SEARCH":
             return
         
-        # Approach時の処理
+        # ランダムヲーク時の処理
+        if CNTRLMODE=="RANDOM_WALK":
+            return
         
+        # 接近モード時の処理
+        if CNTRLMODE=="APPROACH":
+            return
+        
+        # 割るモード時の処理
+        if CNTRLMODE=="ATTACK":
+            return
 
+        # 悪モード the beast時の処理
+        if CNTRLMODE=="ATTACK_BEAST":
+            return
+
+        # 他の風船に行く時の処理
+        if CNTRLMODE=="TARGET_CHANGE":
+            return
+        
         input_th_all=[self.input_th1,self.input_th2,self.input_th3,self.input_th4]
         input_srv_all=[self.input_srv1,self.input_srv2]
         input_chu_all=[self.input_chu1,self.input_chu2]
