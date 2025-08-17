@@ -1,10 +1,13 @@
 import time
+import numpy as np
 
 # コントローラ計算
 class Controller():
     def __init__(self,SA):
         # statusanalyzer
         self.SA=SA
+        self.AREA_MEMORY = []
+        self.Area_tol = 1e-3
 
         self.input_srv1=2048
         self.input_srv2=2048
@@ -150,8 +153,20 @@ class Controller():
 
         # Serch時の処理
         if CNTRLMODE=="SEARCH":
-            return
+            # serch_time 秒間探索する
+            self.serch_time = 6
+            self.serch_counter+=1
+            if self.serch_counter<=int(self.serch_time*100):
+            # 回りながら探索
+                [Pitching,Yawing,Heave,Surge]=self.SearchMode(SensData)
+            else:
+                CNTRLMODE = "DETERMIN"
+                [Pitching,Yawing,Heave,Surge]=[0.0,0.0,0.0,0.0]
         
+        if CNTRLMODE=="DETERMIN":
+            [Pitching,Yawing,Heave,Surge]=self.Determin(SensData)
+
+
         # ランダムヲーク時の処理
         if CNTRLMODE=="RANDOM_WALK":
             return
@@ -234,8 +249,31 @@ class Controller():
         return [Pitching,Yawing,Heave,Surge]
     
     def SearchMode(self,SensData,CameraData):
-        return
+        Current_AREA = CameraData[2]
+        self.AREA_MEMORY.append(Current_AREA)
+        return [0.0,1.0,0.0,0.0]
     
+    def Determin(self,SensData,CameraData):
+        # mean_num個の移動平均
+        mean_num = 60
+        data = np.array(self.AREA_MEMORY, dtype=float)
+        avgs = np.convolve(data, np.ones(mean_num)/mean_num, mode="valid")
+        max_AREA = np.max(avgs)
+        self.AREA_MEMORY.clear()
+
+        # 目標に照準を合わせる
+        Current_AREA = SensData[2]
+        self.AREA_MEMORY.append(Current_AREA)
+        self.area_values = np.array(self.AREA_MEMORY, dtype=float)
+        self.last_values = self.area_values[-30:]
+        CurrentMeanArea = np.mean(self.last_values) if self.last_values.size > 0 else None
+        if abs(CurrentMeanArea - max_AREA) < max_AREA*self.Area_tol:
+            CNTRLMODE="APPROACH"
+            return [0.0,0.0,0.0,0.0]
+        else:
+            return [0.0,1.0,0.0,0.0]
+        
+
     def ApproachMode(self,SensData,CameraData):
         return
     
