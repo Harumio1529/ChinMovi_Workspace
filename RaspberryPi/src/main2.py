@@ -30,21 +30,21 @@ SystemCheck.wifi_off()
 ### デバッグモード ###
 DEBUG_MODE=False
 DEBUG_PRINT=False
-CAMERA_ENABLE=True
+CAMERA_ENABLE=False
 
 #モジュール使用不使用選択
 IMU_ENABLE=True
 DEPTH_ENABLE=False
 DIST_ENABLE=False
-THRUST_ENABLE=True
-SERVO_ENABLE=True
+THRUST_ENABLE=False
+SERVO_ENABLE=False
 CHUSYAKI_ENABLE=False
 
 # IMUキャリブレーション回数
 CALIBRATION_NUM=1
 
 # 録画
-RECORD_ENABLE=True
+RECORD_ENABLE=False
 
 
 #デバッグ用コンソール出力
@@ -59,11 +59,13 @@ ray.init(num_cpus=4)
 # ---ステータス、PC通信管理
 @ray.remote(num_cpus=1)
 class IFManagerClass:
-    def __init__(self,sens_memory_name,input_memory_name,propo_memory_name,gain_memory_name,status_memory_name):
+    def __init__(self,sens_memory_name,input_memory_name,propo_memory_name,gain_memory_name,status_memory_name,camera_memory_name):
         # ステータスのデコーダを準備する。
         self.SA=COMMON.StatusAnalyzer()
         # タスク回転フラグ
         self.task_run=True
+        # スタンドアロンフラグ
+        self.StandaloneFlg=False
 
         # 共有メモリ
         # センサメモリ
@@ -82,6 +84,9 @@ class IFManagerClass:
         self.status_memory=shared_memory.SharedMemory(name=status_memory_name)
         self.status_arr=np.ndarray((7,),dtype=np.int8,buffer=self.status_memory.buf)
         self.init_status()
+        # カメラメモリ
+        self.camera_memory=shared_memory.SharedMemory(name=camera_memory_name)
+        self.camera_arr=np.ndarray((3,),dtype=np.float32,buffer=self.camera_memory.buf)
         
 
         
@@ -196,8 +201,22 @@ class IFManagerClass:
             self.set_status("STCAMERA",StatusData[5])
         if StatusData[6]!="PREPARING":
             self.set_status("STCONTROLLER",StatusData[6])
+    
+    def main_task_standalone(self):
+        if self.StandaloneFlg==False:
+            # self.ComAgent.shutdown(socket.SHUT_RDWR)
+            time.sleep(0.5)
+            self.ComAgent.close()
+            time.sleep(2)
+            print("Switch to StandAloneMode")
+            self.set_status("STCONTROLLER","FULLAUTO_PREPARING")
+            print("You can DISConnect EtherNet Cable")
+            self.StandaloneFlg=True
 
-    def main_task(self):
+        print("StandAloneMode")
+        
+
+    def main_task_withPC(self):
         # 送信用データまとめ
         # 送信用データの中身([byte])
         # [ACC_X(4),ACC_Y(4),ACC_Z(4),GYR_X(4),GYR_Y(4),GYR_Z(4),PITCH(4),ROLL(4),YAW(4),STSOCKET(1),STIMU(1),STTHRUST(1),STSERVO(1),STCHU(1),STCAMERA(1)]
@@ -249,6 +268,14 @@ class IFManagerClass:
         except socket.timeout:
             self.set_status("STSOCKET","TIMEOUT")
             # print("timeout")
+
+    def main_task(self):
+        # コントローラーステータスが3以上になったら自立制御スタート
+        if self.status_arr.astype(int).tolist()[6]>=3:
+            self.main_task_standalone()
+        else:
+            self.main_task_withPC()
+        
 
 
 
@@ -479,10 +506,13 @@ class I2CManagerClass:
 
     def stop_task(self):
         self.task_run=False
-        self.TH.close()
-        # self.CHU1.close()
-        # self.CHU2.close()
-        self.SRV.close()
+        if self.THRUST_ENABLE:
+            self.TH.close()
+        if self.CHUSYAKI_ENABLE:
+            self.CHU1.close()
+            self.CHU2.close()
+        if self.SERVO_ENABLE:
+            self.SRV.close()
         print("module stop")
 
 
@@ -516,7 +546,7 @@ class ControllerClass:
         self.camera_memory=shared_memory.SharedMemory(name=camera_memory_name)
         self.camera_arr=np.ndarray((3,),dtype=np.float32,buffer=self.camera_memory.buf)
 
-        self.Con=Controller()
+        self.Con=Controller(self.SA)
 
         while True:
             STIMU=self.SA.Decoder(self.status_arr)[1]
@@ -557,10 +587,14 @@ class ControllerClass:
         self.status_arr[:]=self.SA.Encoder(status_now)
     
     def main_task(self):
-        print(self.camera_arr)
-        STCONTROLLER=self.SA.Decoder(self.status_arr)[6]
-        InputData=self.Con.Controller(self.propo_arr,self.sens_arr,self.gain_arr,STCONTROLLER)
+        start=time.time()
+        STCONTROLLER=self.status_arr[6]
+        InputData,State=self.Con.Controller(self.propo_arr,self.sens_arr,self.gain_arr,self.camera_arr,STCONTROLLER)
         self.input_arr[:]=[InputData[0],InputData[1],InputData[2],InputData[3],InputData[4],InputData[5],InputData[6],InputData[7]]
+        if STCONTROLLER>=self.SA.Encode_OneSignal("STCONTROLLER","MANUAL_CONTROL"):
+            self.set_status("STCONTROLLER",self.SA.Decode_OneSignal("STCONTROLLER",int(State)))
+        end=time.time()
+        print(end-start)
 
 
 # ---カメラ---
@@ -599,6 +633,7 @@ class CameraClass:
             threading.Thread(target=self.TimerFunc,daemon=True).start()
 
         else :
+            self.camera_arr[:]=[np.nan,np.nan,np.nan]
             self.set_status("STCAMERA","CAPTURE_OK")
 
         self.set_status("STCAMERA","READY")
@@ -710,7 +745,8 @@ IF=IFManagerClass.remote(sens_memory.name,
                          input_memory.name,
                          propo_memory.name,
                          gain_memory.name,
-                         status_memory.name)
+                         status_memory.name,
+                         camera_memory.name)
 I2C=I2CManagerClass.remote(sens_memory.name,
                            input_memory.name,
                            status_memory.name)

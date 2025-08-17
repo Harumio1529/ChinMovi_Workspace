@@ -1,6 +1,7 @@
 import socket
 import time
 
+
 TestPort=5000
 RasPiPort=5001
 PCPort=5002
@@ -107,7 +108,7 @@ class StatusAnalyzer:
         self.STSERVO_List=["PREPARING","CALIBRATION","CALIBRATION_OK","READY","WORKING"]
         self.STCHU_List=["PREPARING","CALIBRATION","CALIBRATION_OK","READY","WORKING"]
         self.STCAMERA_List=["PREPARING","CAPTURE_OK","READY","SERCH_MODE","VIDEO_MODE"]
-        self.STCONTROLLER_List=["PREPARING","MANUAL_CONTROL","ATTITUDE_CONTROL","AUTO_CONTROL"]
+        self.STCONTROLLER_List=["PREPARING","MANUAL_CONTROL","ATTITUDE_CONTROL","AUTO_CONTROL","FULLAUTO_PREPARING","FULLAUTO_READY","SEARCH","SEARCH_TIMEOUT","APPROACH","ATTACK","ATTACK_BEAST","COMPLETE"]
         self.STATUS=[self.STSOCKET_List,
                      self.STIMU_List,
                      self.STTHRUST_List,
@@ -142,8 +143,76 @@ class StatusAnalyzer:
             num+=1
         
         return status_str
+    
+    def Encode_OneSignal(self,target,status):
+        if target=="STSOCKET":
+            return self.serch_status(self.STATUS[0],status)
+        elif target=="STIMU":
+            return self.serch_status(self.STATUS[1],status)
+        elif target=="STTHRUST":
+            return self.serch_status(self.STATUS[2],status)
+        elif target=="STSERVO":
+            return self.serch_status(self.STATUS[3],status)
+        elif target=="STCHU":
+            return self.serch_status(self.STATUS[4],status)
+        elif target=="STCAMERA":
+            return self.serch_status(self.STATUS[5],status)
+        elif target=="STCONTROLLER":
+            return self.serch_status(self.STATUS[6],status)
+        else:
+            print("Invalid Status Signal")
+            return -1 
+    
+    def Decode_OneSignal(self,target,status):
+        if target=="STSOCKET":
+            return self.serch_status(self.STATUS[0],status)
+        elif target=="STIMU":
+            return self.serch_status(self.STATUS[1],status)
+        elif target=="STTHRUST":
+            return self.serch_status(self.STATUS[2],status)
+        elif target=="STSERVO":
+            return self.serch_status(self.STATUS[3],status)
+        elif target=="STCHU":
+            return self.serch_status(self.STATUS[4],status)
+        elif target=="STCAMERA":
+            return self.serch_status(self.STATUS[5],status)
+        elif target=="STCONTROLLER":
+            return self.serch_status(self.STATUS[6],status)
+        else:
+            print("Invalid Status Signal")
+            return -1 
+    
+    def Encode_OneSignal(self,target,status):
+        if target=="STSOCKET":
+            return self.serch_status(self.STATUS[0],status)
+        elif target=="STIMU":
+            return self.serch_status(self.STATUS[1],status)
+        elif target=="STTHRUST":
+            return self.serch_status(self.STATUS[2],status)
+        elif target=="STSERVO":
+            return self.serch_status(self.STATUS[3],status)
+        elif target=="STCHU":
+            return self.serch_status(self.STATUS[4],status)
+        elif target=="STCAMERA":
+            return self.serch_status(self.STATUS[5],status)
+        elif target=="STCONTROLLER":
+            return self.serch_status(self.STATUS[6],status)
+        else:
+            print("Invalid Status Signal")
+            return "ERROR"
 
-        
+    
+    def serch_status(self,list,status):
+        if type(status)==type("string"):
+            pos=0
+            for i in list:
+                if i==status:
+                    break
+                pos+=1
+            return pos
+        else :
+            return list[status]
+    
 
 
 

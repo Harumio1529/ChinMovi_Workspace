@@ -72,6 +72,9 @@ class THRUSTER(PCA9685):
         self.Limitter_MAX=2200
         self.Limitter_MIN=1000
         self.DP=DEBUG_PRINT
+
+        # saftycounter
+        self.SaturationCounter=0
     
     def debugprint(self,data):
         if self.DP:
@@ -94,13 +97,30 @@ class THRUSTER(PCA9685):
 
 
     def Limitter(self,val):
-        return max(min(val,self.Limitter_MAX),self.Limitter_MIN)
+        out=max(min(val,self.Limitter_MAX),self.Limitter_MIN)
+        if val!=out:
+            self.SaturationCounter+=1
+        else :
+            self.SaturationCounter=0
+        return out
     
     def set_thrust(self,Th1,Th2,Th3,Th4):
+        if self.safty_check():
+            self.close()
+            print("Thrust InputNum Error")
         self.set_pwm(self.PinTh1,0,self.Limitter(int(Th1)))
         self.set_pwm(self.PinTh2,0,self.Limitter(int(Th2)))
         self.set_pwm(self.PinTh3,0,self.Limitter(int(Th3)))
         self.set_pwm(self.PinTh4,0,self.Limitter(int(Th4)))
+    
+    def safty_check(self):
+        # 4台x5s間サチったらセーフティロック
+        if self.SaturationCounter>=2000:
+            return True
+        else :
+            return False
+
+
     
     def close(self):
         self.set_pwm(self.PinTh1,0,0)
