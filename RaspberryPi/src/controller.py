@@ -213,7 +213,6 @@ class Controller():
 
         # 他の風船に行く時の処理
         if CNTRLMODE=="TARGET_CHANGE":
-            #微速で1秒後ずさりする
             # serch_time 秒間探索する
             self.TARGET_CNG_bkwd_timing = 1 # 1sec
             self.TARGET_CNG_turn_timing = 2
@@ -222,17 +221,18 @@ class Controller():
 
             if self.TARGET_CNG_counter <= int(self.TARGET_CNG_bkwd_timing*100): #0~1secの時
                 #微速で1秒後ずさりする
-                [Pitching,Yawing,Heave,Surge]=self.TargetCngMode0(SensData)
-            elif (self.TARGET_CNG_counter > int((self.TARGET_CNG_bkwd_timing)*100)) and (self.TARGET_CNG_counter <= int(self.TARGET_CNG_turn_timing*100)): #0~1secの時
-                #1秒回頭する (60deg分)
-                [Pitching,Yawing,Heave,Surge]=self.TargetCngMode1(SensData)
+                [Pitching,Yawing,Heave,Surge]=self.TargetCngMode(0)
+            elif (self.TARGET_CNG_counter > int((self.TARGET_CNG_bkwd_timing)*100)) and (self.TARGET_CNG_counter <= int(self.TARGET_CNG_turn_timing*100)): #1~2secの時
+                #1秒回頭する (約60deg分)
+                [Pitching,Yawing,Heave,Surge]=self.TargetCngMode(1)
+            elif (self.TARGET_CNG_counter > int((self.TARGET_CNG_turn_timing)*100)) and (self.TARGET_CNG_counter <= int(self.TARGET_CNG_fwd_timing*100)): #2~3secの時
+                #微速で前進する
+                [Pitching,Yawing,Heave,Surge]=self.TargetCngMode(2)
             else:
-                CNTRLMODE = "DETERMIN"
+                #SEARCH MODEへ
+                CNTRLMODE = "SEARCH"
                 [Pitching,Yawing,Heave,Surge]=[0.0,0.0,0.0,0.0]
-
-            #微速で前進する
-            #SEARCH MODEへ
-            return
+            return [Pitching,Yawing,Heave,Surge],False,False
         
         # ミキサー
         self.input_th1=int(-600*(Surge+Yawing)+1600)
@@ -342,6 +342,17 @@ class Controller():
     
     def AttackMode(self,SensData,CameraData):
         return [Pitching,Yawing,Heave,Surge],Servo,Chusyaki
+
+    def TargetCngMode(self,phase):
+        if phase = 0: #後ずさり
+            return [0.,0.,0.,-0.3]
+        elif phase = 1: #回頭
+            return [0.,1.,0.,0.]
+        elif phase = 2: #微速前進
+            return [0.,0.,0.,0.3]
+        else: 
+            return [0.,0.,0.,0.]
+        
     
     
     
