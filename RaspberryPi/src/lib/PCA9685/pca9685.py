@@ -114,8 +114,8 @@ class THRUSTER(PCA9685):
         self.set_pwm(self.PinTh4,0,self.Limitter(int(Th4)))
     
     def safty_check(self):
-        # 4台x5s間サチったらセーフティロック
-        if self.SaturationCounter>=2000:
+        # 4台x10s間サチったらセーフティロック
+        if self.SaturationCounter>=40000:
             return True
         else :
             return False

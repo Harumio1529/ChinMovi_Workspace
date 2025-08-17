@@ -220,7 +220,15 @@ class Controller():
         return
     
     def ApproachMode(self,SensData,CameraData):
+        Pitching=0
+        Yawing=self.YAW.Control(0,CameraData[0],self.KpYaw,self.KiYaw,self.KdYaw)
+        Heave=self.HEAVE.Control(0,CameraData[1],self.KpDep,self.KiDep,self.KdDep)
+        Surge=
         return
+    
+    def AttackMode(self,SensData,CameraData):
+
+        return [Pitching,Yawing,Heave,Surge],Servo,Chusyaki
     
     
     

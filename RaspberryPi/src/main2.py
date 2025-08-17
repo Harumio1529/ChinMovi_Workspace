@@ -703,7 +703,7 @@ class CameraClass:
             ret, frame = self.cap.read()
             mx_norma=np.nan
             my_norma=np.nan
-            s=np.nan
+            s=0
             # print("aho")
         
         self.camera_arr[:]=[mx_norma,my_norma,s]

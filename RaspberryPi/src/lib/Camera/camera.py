@@ -80,7 +80,7 @@ class camera():
             return img,mx_max,my_max,s_max
         
         except :
-            return img,np.nan,np.nan,np.nan
+            return img,np.nan,np.nan,0
     
     
 
