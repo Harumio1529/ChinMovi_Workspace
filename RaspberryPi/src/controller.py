@@ -313,7 +313,10 @@ class Controller():
         self.SS_Distance = SensData[10]
         if self.SS_Distance < self.AttackDist:
             self.CNTRLMODE = "APPROACH"
-        
+            self.Yawing = 0.
+            self.Heave = 0.
+        return [0.,self.Yawing,self.Heave,0.],Servo,Chusyaki
+    
     def AttackMode(self,SensData,CameraData):
         return [Pitching,Yawing,Heave,Surge],Servo,Chusyaki
     
